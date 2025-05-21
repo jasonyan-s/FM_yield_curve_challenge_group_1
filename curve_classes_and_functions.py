@@ -9,6 +9,7 @@
 # random comment from howesrichard-tester
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 class ZeroCurve:
     def __init__(self):
@@ -115,3 +116,19 @@ class YieldCurve(ZeroCurve):
             print("The bond price is: ", bond.get_price())
             print("The last cashflow is: ", bond_amounts[-1])
             self.add_discount_factor(bond.get_maturity(),(bond.get_price()-pv)/bond.get_amounts()[-1])
+
+    def create_graph(self):
+        maturities = self.maturities[1:]
+        dfs = self.discount_factors[1:]
+
+        # Convert discount factors to continuously compounded zero rates
+        zero_rates = [-math.log(df) / t for df, t in zip(dfs, maturities)]
+
+        plt.figure()
+        plt.plot(maturities, zero_rates, marker='o')
+        plt.xlabel('Maturity (years)')
+        plt.ylabel('Zero rate')
+        plt.title('Bootstrapped Zero Yield Curve')
+        plt.grid(True, linestyle='--', linewidth=0.5)
+        plt.tight_layout()
+        plt.show()
