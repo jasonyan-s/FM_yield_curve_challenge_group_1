@@ -111,34 +111,10 @@ class Bond(CashFlows):
         return self.ytm
     
     def set_cash_flows(self):
-        """
-        Set up the cash flows for the bond.
-        Fixed to properly handle all coupon payments and ensure the maturity cash flow is correct.
-        """
-        # Clear any existing cash flows
-        self.maturities = []
-        self.amounts = []
-        
-        # Add initial cash flow (negative price)
         self.add_cash_flow(0, -self.price)
-        
-        # Calculate time between coupons
-        time_step = 1.0 / self.frequency
-        
-        # Add all regular coupon payments
-        num_payments = int(self.maturity * self.frequency)
-        coupon_amount = self.face_value * self.coupon / self.frequency
-        
-        for i in range(1, num_payments + 1):
-            payment_time = i * time_step
-            
-            # If this is the final payment, include face value
-            if i == num_payments:  # Final payment
-                payment = coupon_amount + self.face_value
-            else:
-                payment = coupon_amount
-                
-            self.add_cash_flow(payment_time, payment)
+        for i in range(1, int(self.maturity*self.frequency)):
+            self.add_cash_flow(i/self.frequency, self.face_value*self.coupon/self.frequency)
+        self.add_cash_flow(self.maturity, self.face_value + self.face_value*self.coupon/self.frequency)
 
 # create a class for portfolio that inherits from CashFlows and contains Bonds and Bank_bills
 class Portfolio(CashFlows):
@@ -161,38 +137,9 @@ class Portfolio(CashFlows):
         return self.bank_bills
     
     def set_cash_flows(self):
-        """
-        Set up the combined cash flows from all instruments in the portfolio.
-        Fixed to properly handle all instruments.
-        """
-        # Clear any existing cash flows
-        self.maturities = []
-        self.amounts = []
-        
-        # Process bonds
         for bond in self.bonds:
-            try:
-                # Make sure the bond's cash flows are set
-                bond.set_cash_flows()
-                
-                # Get the bond's cash flows and add them to the portfolio
-                bond_flows = bond.get_cash_flows()
-                for maturity, amount in bond_flows:
-                    self.add_cash_flow(maturity, amount)
-            except Exception as e:
-                print(f"Error processing bond in portfolio: {e}")
-                continue
-        
-        # Process bank bills
+            for cash_flow in bond.get_cash_flows():
+                self.add_cash_flow(cash_flow[0], + cash_flow[1])
         for bank_bill in self.bank_bills:
-            try:
-                # Make sure the bank bill's cash flows are set
-                bank_bill.set_cash_flows()
-                
-                # Get the bank bill's cash flows and add them to the portfolio
-                bill_flows = bank_bill.get_cash_flows()
-                for maturity, amount in bill_flows:
-                    self.add_cash_flow(maturity, amount)
-            except Exception as e:
-                print(f"Error processing bank bill in portfolio: {e}")
-                continue
+            for cash_flow in bank_bill.get_cash_flows():
+                self.add_cash_flow(cash_flow[0], + cash_flow[1])
