@@ -47,8 +47,6 @@ class YieldCurve:
             all_instruments.extend(self.constituents.bills)
         if hasattr(self.constituents, 'bonds'):
             all_instruments.extend(self.constituents.bonds)
-        if hasattr(self.constituents, 'inflation_linked_bonds'):
-            all_instruments.extend(self.constituents.inflation_linked_bonds)
 
         self.maturities = []
         self.zero_rates = []
@@ -58,55 +56,47 @@ class YieldCurve:
         prev_dfs = []
 
         for mat in unique_maturities:
-            # Find all instruments that have a cash flow at this maturity
-            candidate_instruments = []
+            # Find instrument that matures at this point
+            maturing_instrument = None
             for inst in all_instruments:
-                cfs = inst.get_cash_flows()
-                if cfs and any(abs(cf[0] - mat) < 1e-8 for cf in cfs):
-                    candidate_instruments.append(inst)
-
-            # Use the price of the instrument that has its final cash flow at this maturity (i.e., mat is the last cash flow)
-            inst_price = None
-            for inst in candidate_instruments:
-                cfs = inst.get_cash_flows()
-                if abs(cfs[-1][0] - mat) < 1e-8:
-                    try:
-                        inst_price = inst.get_price()
-                    except Exception:
-                        inst_price = None
+                if abs(inst.get_maturity() - mat) < 1e-8:
+                    maturing_instrument = inst
                     break
-            # If no such instrument, fallback to the first candidate's price
-            if inst_price is None and candidate_instruments:
-                try:
-                    inst_price = candidate_instruments[0].get_price()
-                except Exception:
-                    inst_price = None
-            if inst_price is None or inst_price <= 0:
-                inst_price = 100.0  # fallback
 
-            cf_amt = sum(cf_by_mat[mat])
+            if maturing_instrument is None:
+                continue
 
+            inst_price = maturing_instrument.get_price()
+            
             if len(prev_maturities) == 0:
-                # Zero-coupon: P = CF / (1+r)^T => r = (CF/P)^(1/T) - 1
-                if cf_amt <= 0 or inst_price <= 0:
-                    raise ValueError(f"Invalid cash flow or price at maturity {mat}")
+                # For first instrument (should be shortest-term bill)
+                cf_amt = sum(cf_by_mat[mat])
                 zero_rate = (cf_amt / inst_price) ** (1 / mat) - 1
                 df = inst_price / cf_amt
             else:
-                pv_prev = 0.0
-                for i, prev_mat in enumerate(prev_maturities):
-                    prev_cf_amt = sum(cf_by_mat[prev_mat])
-                    pv_prev += prev_cf_amt * prev_dfs[i]
-                if cf_amt == 0:
-                    raise ValueError(f"Zero cash flow at maturity {mat}")
-                df = (inst_price - pv_prev) / cf_amt
-                if df <= 0:
-                    zero_rate = 0.0
-                else:
-                    zero_rate = df ** (-1 / mat) - 1
-
-            # Clamp zero_rate to a reasonable range (e.g., -0.99 to 1)
-            zero_rate = min(max(zero_rate, -0.99), 1.0)
+                # For subsequent instruments
+                pv_future = inst_price
+                cf_mat = mat
+                
+                # Calculate present value of all earlier cash flows
+                for prev_mat, prev_df in zip(prev_maturities, prev_dfs):
+                    if prev_mat in cf_by_mat:
+                        pv_future -= sum(cf_by_mat[prev_mat]) * prev_df
+            
+                # Final cash flow at maturity
+                final_cf = sum(cf_by_mat[mat])
+                
+                # Calculate discount factor and zero rate
+                if final_cf <= 0:
+                    raise ValueError(f"Invalid final cash flow at maturity {mat}")
+                
+                df = pv_future / final_cf
+                zero_rate = df ** (-1 / mat) - 1
+                
+                # Apply sanity checks
+                if zero_rate < -0.99 or zero_rate > 1.0:
+                    zero_rate = min(max(zero_rate, -0.99), 1.0)
+                    df = 1 / ((1 + zero_rate) ** mat)
 
             self.maturities.append(mat)
             self.zero_rates.append(zero_rate)
