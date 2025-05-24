@@ -153,16 +153,16 @@ class YieldCurveSimulator:
         """
         portfolio = instruments.Portfolio()
 
-        # Helper function to get a representative rate for a given maturity
-        # This is a simplification; in reality, we'd use an existing curve to price.
-        # Here, we're building the curve, so we use the simulated rates as anchors.
+        # Helper function to get a representative rate for a maturity
         def get_rate_for_maturity(maturity):
             if maturity <= 0.5:
                 return rates['short_term']
             elif maturity <= 2:
+                return 0.5 * rates['short_term'] + 0.5 * rates['medium_term']  # Blend rates for smoother transition
+            elif maturity <= 5:
                 return rates['medium_term']
             else:
-                return rates['long_term']
+                return 0.7 * rates['medium_term'] + 0.3 * rates['long_term']  # Blend rates for longer maturities
 
         # Define instruments with maturities and derive their market prices
         # based on the simulated rates.
@@ -186,29 +186,21 @@ class YieldCurveSimulator:
         # For simplicity, let's make coupon rates reflective of current market conditions.
         # We will use the simulated rates to set YTMs for pricing.
 
-        bond1 = instruments.Bond(face_value=100, maturity=1, coupon=0.03, frequency=2)
-        bond1_ytm_for_pricing = get_rate_for_maturity(bond1.maturity)
-        bond1.set_ytm(bond1_ytm_for_pricing)
-        bond1.set_cash_flows()
-        bond1.price = bond1.get_price()
-
-        bond2 = instruments.Bond(face_value=100, maturity=2, coupon=0.04, frequency=2)
-        bond2_ytm_for_pricing = get_rate_for_maturity(bond2.maturity)
-        bond2.set_ytm(bond2_ytm_for_pricing)
-        bond2.set_cash_flows()
-        bond2.price = bond2.get_price()
-
-        bond3 = instruments.Bond(face_value=100, maturity=5, coupon=0.045, frequency=2)
-        bond3_ytm_for_pricing = get_rate_for_maturity(bond3.maturity)
-        bond3.set_ytm(bond3_ytm_for_pricing)
-        bond3.set_cash_flows()
-        bond3.price = bond3.get_price()
-
-        bond4 = instruments.Bond(face_value=100, maturity=10, coupon=0.05, frequency=2)
-        bond4_ytm_for_pricing = get_rate_for_maturity(bond4.maturity)
-        bond4.set_ytm(bond4_ytm_for_pricing)
-        bond4.set_cash_flows()
-        bond4.price = bond4.get_price()
+        bond_maturities = [1, 2, 3, 5, 7, 10]
+        for maturity in bond_maturities:
+            bond = instruments.Bond(face_value=100, maturity=maturity,
+                                  coupon=get_rate_for_maturity(maturity),  # Set coupon close to market rate
+                                  frequency=2)
+            bond_ytm = get_rate_for_maturity(maturity)
+            bond.set_ytm(bond_ytm)
+            bond.set_cash_flows()
+            bond.price = bond.get_price()
+            
+            # Sanity check for bond price
+            if abs(bond.price - 100) > 20:  # If price deviates more than 20% from par
+                st.warning(f"Unusual bond price for {maturity}Y bond: {bond.price:.2f}")
+            
+            portfolio.add_bond(bond)
 
         # Inflation-linked bond example (using inflation rate for its effect)
         # For an inflation-linked bond, its cash flows are adjusted by inflation.

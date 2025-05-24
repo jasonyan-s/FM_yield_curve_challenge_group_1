@@ -68,10 +68,19 @@ class YieldCurve:
 
             inst_price = maturing_instrument.get_price()
             
+            # Add price sanity check
+            if inst_price <= 0 or inst_price > 200:  # Assuming prices are per 100 face value
+                raise ValueError(f"Invalid instrument price {inst_price} at maturity {mat}")
+
             if len(prev_maturities) == 0:
                 # For first instrument (should be shortest-term bill)
                 cf_amt = sum(cf_by_mat[mat])
                 zero_rate = (cf_amt / inst_price) ** (1 / mat) - 1
+                
+                # Add rate sanity check for first instrument
+                if not (0 <= zero_rate <= 0.5):  # 0% to 50% range
+                    zero_rate = min(max(zero_rate, 0.001), 0.5)
+            
                 df = inst_price / cf_amt
             else:
                 # For subsequent instruments
