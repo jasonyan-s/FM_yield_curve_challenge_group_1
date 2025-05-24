@@ -153,6 +153,7 @@ class Bond:
             else:
                 ytm_high = ytm_mid
         
+        print(f"Estimated YTM from price ytm_low is ytm_high is ${price:.2f}: {ytm_mid*100:.2f}%")
         return (ytm_low + ytm_high) / 2
     
     def update_price(self, new_price: float):
@@ -974,32 +975,76 @@ def main():
                 elif instruments == "Bonds":
                     # Plot bond YTM histories
                     fig, ax = plt.subplots(figsize=(10, 6))
-                    for i, bond in enumerate(st.session_state.market_sim.bonds):
-                        # Extract YTM rates from history
-                        rates = []
-                        for update_idx, price in enumerate(st.session_state.price_history['bonds'][i]):
-                            # Create a temporary bond to calculate the YTM more directly
-                            temp_bond = Bond(
-                                maturity_years=bond.maturity_years,
-                                coupon_rate=bond.coupon_rate,
-                                face_value=bond.face_value,
-                                frequency=bond.frequency,
-                                yield_to_maturity=bond.coupon_rate  # Start with coupon as initial guess
-                            )
-                            # Calculate YTM directly using price
-                            ytm = temp_bond.calculate_ytm_from_price(price)
-                            rates.append(ytm * 100)  # Convert to percentage
-                            
-                        if rates:
-                            ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+                    for i, history in st.session_state.price_history['bonds'].items():
+                        if history:
+                            bond = st.session_state.market_sim.bonds[i]
+                            # Extract YTM rates from history
+                            rates = []
+                            for update_idx, price in enumerate(history):
+                                # Temporarily create a bond with this price to get the YTM
+                                temp_bond = Bond(
+                                    face_value=bond.face_value,
+                                    coupon_rate=bond.coupon_rate,
+                                    maturity_years=bond.maturity_years,
+                                    frequency=bond.frequency,
+                                    price=price
+                                )
 
+                                print(temp_bond)
+                                rates.append(temp_bond.yield_to_maturity * 100)  # Convert to percentage
+
+                            if rates:
+                                ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+                    
                     ax.set_xlabel('Market Updates')
-                    ax.set_ylabel('Yield to Maturity (%)')
-                    ax.set_title('Bond YTM History')
+                    ax.set_ylabel('Price ($)')
+                    ax.set_title('Bond Price History')
                     ax.grid(True)
                     ax.legend()
                     st.pyplot(fig)
                 
+
+                # fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # data = self.history[instrument_type]
+        # labels = []
+        
+        # for i, rates in data.items():
+        #     if len(rates) > 1:  # Only plot if we have history
+        #         if instrument_type == "bank_bills":
+        #             label = f"Bill {i+1} ({self.bank_bills[i].maturity_days} days)"
+        #         elif instrument_type == "bonds":
+        #             label = f"Bond {i+1} ({self.bonds[i].maturity_years} years)"
+        #         elif instrument_type == "fras":
+        #             label = f"FRA {i+1} ({self.fras[i].settlement_days} days)"
+        #         else:  # bond_forwards
+        #             label = f"BF {i+1} ({self.bond_forwards[i].settlement_days} days)"
+                
+        #         ax.plot(rates, label=label)
+        #         labels.append(label)
+        
+        # ax.set_xlabel('Market Updates')
+        
+        # if instrument_type in ["bank_bills", "bonds"]:
+        #     ax.set_ylabel('Yield (%)')
+        #     title = "Yield History"
+        # elif instrument_type == "fras":
+        #     ax.set_ylabel('Forward Rate (%)')
+        #     title = "Forward Rate History"
+        # else:
+        #     ax.set_ylabel('Forward Yield (%)')
+        #     title = "Forward Yield History"
+            
+        # # Convert to percentage for display
+        # yticks = ax.get_yticks()
+        # ax.set_yticks(yticks)
+        # ax.set_yticklabels([f'{x*100:.2f}%' for x in yticks])
+        
+        # ax.set_title(title)
+        # ax.grid(True)
+        # ax.legend()
+        
+        # return fig
 
                     
                 elif instruments == "Forward Rate Agreements":
