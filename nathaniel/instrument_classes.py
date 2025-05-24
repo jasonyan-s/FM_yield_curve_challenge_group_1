@@ -191,6 +191,10 @@ class Bank_bill(Instrument):
         float: Yield to maturity
         """
         return (self.face_value / price) ** (1 / self.maturity) - 1
+    
+    def get_maturity(self):
+        """Get the maturity of the bank bill."""
+        return self.maturity
 
 
 class Bond(Instrument):
