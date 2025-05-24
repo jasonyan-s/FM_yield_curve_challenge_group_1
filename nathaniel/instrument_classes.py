@@ -278,6 +278,10 @@ class Bond(Instrument):
             ytm = ytm - (p - price) / dp
         
         return ytm
+    
+    def get_maturity(self):
+        """Get the maturity of the bond."""
+        return self.maturity
 
 
 class InflationLinkedBond(Bond):
@@ -332,6 +336,10 @@ class InflationLinkedBond(Bond):
                 self.cash_flows.append((payment_time, adjusted_coupon + adjusted_face_value))
             else:
                 self.cash_flows.append((payment_time, adjusted_coupon))
+    
+    def get_maturity(self):
+        """Get the maturity of the inflation-linked bond."""
+        return self.maturity
 
 
 class Portfolio:
