@@ -11,7 +11,7 @@ import curve_classes_and_functions
 import time
 
 # Set random seed for reproducibility
-np.random.seed(42)
+# np.random.seed(42)
 
 # ---------------------- Financial Instruments ----------------------
 
@@ -503,6 +503,7 @@ class YieldCurve:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(self.maturities, [y * 100 for y in self.yields], 'o-', linewidth=2)
         ax.set_xlabel('Maturity (years)')
+        ax.set_ylim([0, max([y * 100 for y in self.yields]) + 2])
         ax.set_ylabel('Yield (%)')
         ax.set_title('Yield Curve')
         ax.grid(True)
@@ -565,36 +566,66 @@ class MarketSimulation:
         
         return self.portfolio
     
+
     def update_market(self, volatility: float = 0.05):
-        """Update all market prices with random movements"""
+        """Update all market prices using Geometric Brownian Motion"""
+        # Set time step (dt) - assuming each update represents 1 day in market time
+        dt = 1/252  # Standard assumption: ~252 trading days per year
+        
+        # Set drift (mu) - can be adjusted based on market conditions
+        mu = 0.03  # 3% annual drift
+        
+        # Scale volatility parameter to match GBM expectations
+        sigma = volatility * 0.1  # Scale input volatility to reasonable range
+        
         # Update bank bills
         for bill in self.bank_bills:
-            change = np.random.normal(0, volatility) * 0.003  # Small random changes
-            new_yield = max(0.001, bill.yield_rate + change)  # Ensure positive yield
+            # Apply GBM to the yield
+            drift = mu * dt
+            diffusion = sigma * np.random.normal(0, np.sqrt(dt))
+            
+            # Yield follows GBM but can't go below a minimum threshold
+            yield_change_factor = np.exp(drift + diffusion)
+            new_yield = max(0.001, bill.yield_rate * yield_change_factor)
             bill.update_yield(new_yield)
         
         # Update bonds
         for bond in self.bonds:
-            change = np.random.normal(0, volatility) * 0.004
-            new_ytm = max(0.001, bond.yield_to_maturity + change)
+            # Apply GBM to the yield-to-maturity
+            drift = mu * dt
+            diffusion = sigma * np.random.normal(0, np.sqrt(dt))
+            
+            # YTM follows GBM but can't go below a minimum threshold
+            ytm_change_factor = np.exp(drift + diffusion)
+            new_ytm = max(0.001, bond.yield_to_maturity * ytm_change_factor)
             bond.update_ytm(new_ytm)
         
         # Update yield curve
         self.yield_curve.update_curve()
         
-        # Update FRAs with some deviation from theoretical prices
+        # Update FRAs with some deviation from theoretical prices using GBM
         for fra in self.fras:
             theoretical_rate = fra.calculate_theoretical_forward_rate()
-            deviation = np.random.normal(0, volatility) * 0.006
-            new_rate = theoretical_rate + deviation
-            fra.update_forward_rate(max(0.001, new_rate))
+            
+            # Apply GBM to add realistic noise to the theoretical rate
+            drift = mu * dt
+            diffusion = sigma * 1.2 * np.random.normal(0, np.sqrt(dt))  # Slightly higher vol for derivatives
+            
+            rate_change_factor = np.exp(drift + diffusion)
+            new_rate = max(0.001, theoretical_rate * rate_change_factor)
+            fra.update_forward_rate(new_rate)
         
-        # Update Bond Forwards with some deviation from theoretical prices
+        # Update Bond Forwards with some deviation from theoretical prices using GBM
         for bf in self.bond_forwards:
             theoretical_yield = bf.calculate_theoretical_forward_yield()
-            deviation = np.random.normal(0, volatility) * 0.007
-            new_yield = theoretical_yield + deviation
-            bf.update_forward_yield(max(0.001, new_yield))
+            
+            # Apply GBM to add realistic noise to the theoretical yield
+            drift = mu * dt
+            diffusion = sigma * 1.3 * np.random.normal(0, np.sqrt(dt))  # Even higher vol for bond forwards
+            
+            yield_change_factor = np.exp(drift + diffusion)
+            new_yield = max(0.001, theoretical_yield * yield_change_factor)
+            bf.update_forward_yield(new_yield)
         
         # Update the portfolio
         self.create_portfolio()
@@ -701,7 +732,7 @@ def main():
         st.subheader("Market Controls")
         
         with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+            # st.markdown('<div class="card">', unsafe_allow_html=True)
             volatility = st.slider("Market Volatility", 
                                   min_value=0.1, 
                                   max_value=1.0, 
@@ -775,7 +806,7 @@ def main():
             
             # Market Summary Section
             st.subheader("Market Summary")
-            st.markdown('<div class="card">', unsafe_allow_html=True)
+            # st.markdown('<div class="card">', unsafe_allow_html=True)
             
             # Display arbitrage opportunities summary
             opportunities = st.session_state.market_sim.get_arbitrage_opportunities()
@@ -815,10 +846,15 @@ def main():
                 first_maturities, first_yields = st.session_state.yield_history[0]
                 ax.plot(first_maturities, [y * 100 for y in first_yields], 'o-', alpha=0.3, color='blue')
                 
+                # Set y-axis limits to be consistent with the main yield curve chart
+      
+                
                 # Plot the latest curve
                 last_maturities, last_yields = st.session_state.yield_history[-1]
                 ax.plot(last_maturities, [y * 100 for y in last_yields], 'o-', linewidth=2, color='red')
                 
+                max_yield = max(max([y * 100 for y in first_yields] or [0]), max([y * 100 for y in last_yields] or [0]))
+                ax.set_ylim([0, max_yield + 2])
                 ax.set_xlabel('Maturity (years)')
                 ax.set_ylabel('Yield (%)')
                 ax.set_title('Yield Curve Evolution')
@@ -1143,7 +1179,7 @@ def main():
         yields = st.session_state.market_sim.yield_curve.yields
         st.session_state.yield_history.append((maturities, yields))
         
-        st.experimental_rerun()
+        st.rerun()
 
 if __name__ == "__main__":
     main()
