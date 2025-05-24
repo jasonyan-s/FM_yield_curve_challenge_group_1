@@ -316,7 +316,7 @@ class YieldCurve:
         ax.plot(self.maturities, [y * 100 for y in self.yields], 'o-', linewidth=2)
         # Set y-axis to start at 0
         # Set y-axis to start at 0 and end at max yield + 2%
-        ax.set_ylim(0, max([y * 100 for y in self.yields]) + 2)
+        ax.set_ylim(3, max([y * 100 for y in self.yields]) + 2)
         ax.set_xlabel('Maturity (years)')
         ax.set_ylabel('Yield (%)')
         ax.set_title('Yield Curve')
