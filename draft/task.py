@@ -630,6 +630,7 @@ class MarketSimulation:
         # Update the portfolio
         self.create_portfolio()
     
+    
     def get_arbitrage_opportunities(self) -> Dict:
         """Get all arbitrage opportunities in the market"""
         opportunities = {
@@ -829,7 +830,7 @@ def main():
     
     with right_col:
         # Create tabs for different visualizations
-        tab1, tab2 = st.tabs(["Yield Curve", "Price History"])
+        tab1, tab2, tab3 = st.tabs(["Yield Curve", "Price History", "Rate History"])
         
         with tab1:
             st.subheader("Dynamic Yield Curve")
@@ -935,7 +936,128 @@ def main():
                     st.pyplot(fig)
             else:
                 st.info("Run a few market updates to see price history charts")
-    
+        
+        with tab3:
+            # Create rate history charts for each instrument type
+            if len(st.session_state.timestamps) > 1:
+                instruments = st.radio(
+                    "Select Instrument Type for Rate History",
+                    ["Bank Bills", "Bonds", "Forward Rate Agreements", "Bond Forwards"],
+                    horizontal=True,
+                    key="rate_history_selector"
+                )
+
+                if instruments == "Bank Bills":
+                    # Plot bank bill yield histories
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    for i, bill in enumerate(st.session_state.market_sim.bank_bills):
+                        # Extract yield rates from history
+                        rates = []
+                        for update_idx, price in enumerate(st.session_state.price_history['bank_bills'][i]):
+                            # Temporarily create a bill with this price to get the yield
+                            temp_bill = BankBill(
+                                maturity_days=bill.maturity_days,
+                                price=price
+                            )
+                            rates.append(temp_bill.yield_rate * 100)  # Convert to percentage
+
+                        if rates:
+                            ax.plot(range(len(rates)), rates, '-o', label=f"Bill {i+1} ({bill.maturity_days} days)")
+
+                    ax.set_xlabel('Market Updates')
+                    ax.set_ylabel('Yield Rate (%)')
+                    ax.set_title('Bank Bill Yield History')
+                    ax.grid(True)
+                    ax.legend()
+                    st.pyplot(fig)
+
+                elif instruments == "Bonds":
+                    # Plot bond YTM histories
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    for i, bond in enumerate(st.session_state.market_sim.bonds):
+                        # Extract YTM rates from history
+                        rates = []
+                        for update_idx, price in enumerate(st.session_state.price_history['bonds'][i]):
+                            # Create a temporary bond to calculate the YTM more directly
+                            temp_bond = Bond(
+                                maturity_years=bond.maturity_years,
+                                coupon_rate=bond.coupon_rate,
+                                face_value=bond.face_value,
+                                frequency=bond.frequency,
+                                yield_to_maturity=bond.coupon_rate  # Start with coupon as initial guess
+                            )
+                            # Calculate YTM directly using price
+                            ytm = temp_bond.calculate_ytm_from_price(price)
+                            rates.append(ytm * 100)  # Convert to percentage
+                            
+                        if rates:
+                            ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+
+                    ax.set_xlabel('Market Updates')
+                    ax.set_ylabel('Yield to Maturity (%)')
+                    ax.set_title('Bond YTM History')
+                    ax.grid(True)
+                    ax.legend()
+                    st.pyplot(fig)
+                
+
+                    
+                elif instruments == "Forward Rate Agreements":
+                    # Plot FRA forward rate histories
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    for i, fra in enumerate(st.session_state.market_sim.fras):
+                        # Extract forward rates from history
+                        rates = []
+                        for update_idx, price in enumerate(st.session_state.price_history['fras'][i]):
+                            # Temporarily create an FRA with this price to get the forward rate
+                            temp_fra = ForwardRateAgreement(
+                                underlying_bill=fra.underlying_bill,
+                                settlement_days=fra.settlement_days,
+                                price=price
+                            )
+                            rates.append(temp_fra.forward_rate * 100)  # Convert to percentage
+
+                        if rates:
+                            ax.plot(range(len(rates)), rates, '-o',
+                                    label=f"FRA {i+1} (Bill: {fra.underlying_bill.maturity_days}d, Settle: {fra.settlement_days}d)")
+
+                    ax.set_xlabel('Market Updates')
+                    ax.set_ylabel('Forward Rate (%)')
+                    ax.set_title('Forward Rate Agreement Rate History')
+                    ax.grid(True)
+                    ax.legend()
+                    st.pyplot(fig)
+
+                elif instruments == "Bond Forwards":
+                    # Plot bond forward yield histories
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    for i, bf in enumerate(st.session_state.market_sim.bond_forwards):
+                        # Extract forward yields from history
+                        rates = []
+                        for update_idx, price in enumerate(st.session_state.price_history['bond_forwards'][i]):
+                            # Temporarily create a bond forward with this price to get the forward yield
+                            temp_bf = BondForward(
+                                underlying_bond=bf.underlying_bond,
+                                settlement_days=bf.settlement_days,
+                                price=price
+                            )
+                            rates.append(temp_bf.forward_yield * 100)  # Convert to percentage
+
+                        if rates:
+                            ax.plot(range(len(rates)), rates, '-o',
+                                    label=f"BF {i+1} (Bond: {bf.underlying_bond.maturity_years}y, Settle: {bf.settlement_days}d)")
+
+                    ax.set_xlabel('Market Updates')
+                    ax.set_ylabel('Forward Yield (%)')
+                    ax.set_title('Bond Forward Yield History')
+                    ax.grid(True)
+                    ax.legend()
+                    st.pyplot(fig)
+            else:
+                st.info("Run a few market updates to see rate history charts")
+
+
+
     # Market Data Section with enhanced dynamic display
     st.header("Live Market Data")
     
