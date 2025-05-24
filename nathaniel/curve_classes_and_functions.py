@@ -59,7 +59,7 @@ class YieldCurve:
             # Find instrument that matures at this point
             maturing_instrument = None
             for inst in all_instruments:
-                if abs(inst.get_maturity() - mat) < 1e-8:
+                if abs(inst.get_maturity() - mat) < 1e-8:  # Using get_maturity() method
                     maturing_instrument = inst
                     break
 
