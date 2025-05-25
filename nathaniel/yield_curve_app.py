@@ -13,8 +13,18 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import the yield curve simulator
 from yield_curve_simulation import YieldCurveSimulator
 
+def initialize_session_state():
+    if 'simulator' not in st.session_state:
+        st.session_state.simulator = None
+    if 'current_step' not in st.session_state:
+        st.session_state.current_step = 0
+    if 'simulation_active' not in st.session_state:
+        st.session_state.simulation_active = False
+
 def main():
     st.title("Yield Curve Simulation Tool")
+    
+    initialize_session_state()
     
     st.sidebar.header("Simulation Parameters")
     
@@ -59,92 +69,98 @@ def main():
     update_interval = st.sidebar.number_input("Update Interval (seconds)", min_value=1, value=5)
     steps_per_update = st.sidebar.number_input("Steps per Update", min_value=1, value=10, max_value=50)
     
-    # Initialize session state if not exists
-    if 'simulator' not in st.session_state:
-        st.session_state.simulator = None
+    # Run/Stop buttons
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        run_simulation = st.button("Run Simulation")
+    with col2:
+        stop_simulation = st.button("Stop Simulation")
+    
+    if stop_simulation:
+        st.session_state.simulation_active = False
+    
+    if run_simulation:
+        # Reset simulation
+        simulator = YieldCurveSimulator(time_horizon=time_horizon, num_steps=num_steps)
+        # Set simulator parameters
+        simulator.volatilities = {
+            'short_term': vol_short,
+            'medium_term': vol_medium,
+            'long_term': vol_long,
+            'inflation': vol_inflation
+        }
+        simulator.drifts = {
+            'short_term': drift_short,
+            'medium_term': drift_medium,
+            'long_term': drift_long,
+            'inflation': drift_inflation
+        }
+        simulator.correlation_matrix = correlation_matrix
+        
+        st.session_state.simulator = simulator
         st.session_state.current_step = 0
-    
-    # Build the correlation matrix from inputs
-    correlation_matrix = np.array([
-        [1.0, corr_short_medium, corr_short_long, corr_short_inflation],
-        [corr_short_medium, 1.0, corr_medium_long, corr_medium_inflation],
-        [corr_short_long, corr_medium_long, 1.0, corr_long_inflation],
-        [corr_short_inflation, corr_medium_inflation, corr_long_inflation, 1.0]
-    ])
-    
-    # Check if correlation matrix is positive semi-definite
-    eigenvalues = np.linalg.eigvals(correlation_matrix)
-    if not np.all(eigenvalues >= -1e-10):  # Allow for small numerical errors
-        st.error("Warning: The correlation matrix is not positive semi-definite. Please adjust correlation parameters.")
-        return
-    
-    # Run button
-    run_simulation = st.sidebar.button("Run Simulation")
-    stop_simulation = st.sidebar.button("Stop Simulation")
-    
-    if run_simulation or (auto_update and not stop_simulation):
-        if run_simulation:
-            # Reset simulation
-            simulator = YieldCurveSimulator(time_horizon=time_horizon, num_steps=num_steps)
-            simulator.volatilities = {
-                'short_term': vol_short,
-                'medium_term': vol_medium,
-                'long_term': vol_long,
-                'inflation': vol_inflation
-            }
-            simulator.drifts = {
-                'short_term': drift_short,
-                'medium_term': drift_medium,
-                'long_term': drift_long,
-                'inflation': drift_inflation
-            }
-            simulator.correlation_matrix = correlation_matrix
-            st.session_state.simulator = simulator
-            st.session_state.current_step = 0
-        
-        # Create placeholder for visualizations
-        plot_container = st.empty()
-        progress_bar = st.progress(0)
-        
-        while st.session_state.current_step < num_steps and auto_update and not stop_simulation:
+        st.session_state.simulation_active = True
+
+    # Create placeholder for visualizations
+    plot_container = st.empty()
+    progress_bar = st.progress(0)
+
+    if st.session_state.simulator is not None:
+        while (st.session_state.current_step < num_steps and 
+               auto_update and 
+               st.session_state.simulation_active):
+            
             with plot_container.container():
                 # Calculate next batch of steps
                 end_step = min(st.session_state.current_step + steps_per_update, num_steps)
-                st.session_state.simulator.simulate_steps(st.session_state.current_step, end_step)
+                st.session_state.simulator.simulate_steps(
+                    st.session_state.current_step, 
+                    end_step
+                )
                 
                 # Get current curves and display
                 yield_curves, zero_rates_df = st.session_state.simulator.get_current_curves()
                 
                 # Display tabs
-                tab1, tab2, tab3 = st.tabs(["Yield Curve Snapshots", "Rate Evolution", "Data Table"])
+                tab1, tab2, tab3 = st.tabs(["Yield Curve Snapshots", 
+                                          "Rate Evolution", 
+                                          "Data Table"])
                 
                 with tab1:
                     st.subheader("Yield Curve Snapshots")
-                    selected_steps = [0, end_step//2, end_step-1]
-                    fig = st.session_state.simulator.plot_yield_curves(zero_rates_df, selected_steps)
+                    fig = st.session_state.simulator.plot_yield_curves(
+                        zero_rates_df, 
+                        [0, end_step//2, end_step-1]
+                    )
                     st.pyplot(fig)
                 
                 with tab2:
                     st.subheader("Rate Evolution")
-                    available_maturities = [0.5, 2, 5, 10]  # Example maturities
-                    fig = st.session_state.simulator.plot_rate_evolution(zero_rates_df, available_maturities)
+                    fig = st.session_state.simulator.plot_rate_evolution(
+                        zero_rates_df, 
+                        [0.5, 2, 5, 10]
+                    )
                     st.pyplot(fig)
                 
                 with tab3:
                     st.subheader("Zero Rates Data")
                     st.dataframe(zero_rates_df)
                 
-                # Update progress and step
+                # Update progress
+                progress = st.session_state.current_step / num_steps
+                progress_bar.progress(progress)
+                
                 st.session_state.current_step = end_step
-                progress_bar.progress(st.session_state.current_step / num_steps)
                 
                 time.sleep(update_interval)
         
         if not auto_update or st.session_state.current_step >= num_steps:
             # Final update for non-auto or completed simulation
             yield_curves, zero_rates_df = st.session_state.simulator.get_current_curves()
-            # Display final state
-            # ... existing visualization code ...
+            with plot_container.container():
+                # Display final state using same tab structure
+                # ...existing visualization code...
+                pass
     
     else:
         st.info("Adjust parameters on the sidebar and click 'Run Simulation' to start.")
