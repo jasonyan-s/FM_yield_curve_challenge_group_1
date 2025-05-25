@@ -158,126 +158,54 @@ class YieldCurveSimulator:
             if maturity <= 0.5:
                 return rates['short_term']
             elif maturity <= 2:
-                return 0.5 * rates['short_term'] + 0.5 * rates['medium_term']  # Blend rates for smoother transition
+                return 0.5 * (rates['short_term'] + rates['medium_term'])
             elif maturity <= 5:
                 return rates['medium_term']
             else:
-                return 0.7 * rates['medium_term'] + 0.3 * rates['long_term']  # Blend rates for longer maturities
+                return 0.7 * rates['medium_term'] + 0.3 * rates['long_term']
 
-        # Define instruments with maturities and derive their market prices
-        # based on the simulated rates.
-        # Bank bills (zero-coupon)
+        # Create and initialize bills
         bill1 = instruments.Bank_bill(face_value=100, maturity=0.25)
-        # Use the rate for its maturity to set its YTM for pricing
-        bill1_ytm_for_pricing = get_rate_for_maturity(bill1.maturity)
-        bill1.set_ytm(bill1_ytm_for_pricing)
+        bill1.set_ytm(get_rate_for_maturity(0.25))
         bill1.set_cash_flows()
-        # The price is calculated based on its YTM
-        bill1.price = bill1.get_price_from_ytm() # Store price attribute for bootstrap to use
+        bill1.price = bill1.get_price()
+        portfolio.add_bank_bill(bill1)
 
         bill2 = instruments.Bank_bill(face_value=100, maturity=0.5)
-        bill2_ytm_for_pricing = get_rate_for_maturity(bill2.maturity)
-        bill2.set_ytm(bill2_ytm_for_pricing)
+        bill2.set_ytm(get_rate_for_maturity(0.5))
         bill2.set_cash_flows()
-        bill2.price = bill2.get_price_from_ytm()
+        bill2.price = bill2.get_price()
+        portfolio.add_bank_bill(bill2)
 
-        # Bonds (coupon-bearing)
-        # The coupon rate for bonds can be a fixed value or related to the simulated rates.
-        # For simplicity, let's make coupon rates reflective of current market conditions.
-        # We will use the simulated rates to set YTMs for pricing.
-
+        # Create and initialize bonds with appropriate market rates
         bond_maturities = [1, 2, 3, 5, 7, 10]
         for maturity in bond_maturities:
-            bond = instruments.Bond(face_value=100, maturity=maturity,
-                                  coupon=get_rate_for_maturity(maturity),  # Set coupon close to market rate
-                                  frequency=2)
-            bond_ytm = get_rate_for_maturity(maturity)
-            bond.set_ytm(bond_ytm)
+            market_rate = get_rate_for_maturity(maturity)
+            bond = instruments.Bond(
+                face_value=100,
+                maturity=maturity,
+                coupon=market_rate,  # Set coupon to market rate
+                frequency=2
+            )
+            bond.set_ytm(market_rate)
             bond.set_cash_flows()
-            bond.price = bond.get_price()
-            
-            # Sanity check for bond price
-            if abs(bond.price - 100) > 20:  # If price deviates more than 20% from par
-                st.warning(f"Unusual bond price for {maturity}Y bond: {bond.price:.2f}")
-            
+            bond.price = bond.get_price()  # Calculate price based on YTM
             portfolio.add_bond(bond)
 
-        # Inflation-linked bond example (using inflation rate for its effect)
-        # For an inflation-linked bond, its cash flows are adjusted by inflation.
-        # Its price would be discounted by real rates or a combination of nominal rates and inflation expectations.
-        # For simplicity, we'll assign a real yield related to the long-term rate and
-        # let its cash flows reflect inflation.
-        inflation_linked_bond = instruments.InflationLinkedBond(
-            face_value=100, maturity=7, coupon=0.015, frequency=2, inflation_rate=rates['inflation']
+        # Create inflation-linked bond
+        inflation_bond = instruments.InflationLinkedBond(
+            face_value=100,
+            maturity=7,
+            coupon=max(0.015, get_rate_for_maturity(7) - rates['inflation']),  # Real yield
+            frequency=2,
+            inflation_rate=rates['inflation']
         )
-        inflation_linked_bond.set_inflation_rate(rates['inflation'])
-        # The YTM for pricing should represent a real yield, which we can tie to the long-term rate
-        inflation_linked_bond_ytm_for_pricing = rates['long_term'] - rates['inflation']
-        inflation_linked_bond.set_ytm(max(1e-6, inflation_linked_bond_ytm_for_pricing)) # Ensure positive YTM
-        inflation_linked_bond.set_cash_flows()
-        inflation_linked_bond.price = inflation_linked_bond.get_price()
+        inflation_bond.set_ytm(get_rate_for_maturity(7))
+        inflation_bond.set_cash_flows()
+        inflation_bond.price = inflation_bond.get_price()
+        portfolio.add_inflation_linked_bond(inflation_bond)
 
-
-        # Add all instruments to the portfolio
-        portfolio.add_bank_bill(bill1)
-        portfolio.add_bank_bill(bill2)
-        portfolio.add_bond(bond1)
-        portfolio.add_bond(bond2)
-        portfolio.add_bond(bond3)
-        portfolio.add_bond(bond4)
-        portfolio.add_inflation_linked_bond(inflation_linked_bond)
-
-        # It's crucial that instruments have a 'price' attribute for the bootstrap method.
-        # We can dynamically add this attribute or modify instrument_classes to include it.
-        # For now, we'll assume the get_price() method is correctly overridden/implemented
-        # in each instrument class and returns a price that makes sense for bootstrapping.
-
-        # The get_price() method of Instrument calls self.ytm if discount_rates is None.
-        # We need to ensure each instrument *has* a price before bootstrapping,
-        # and that price should be consistent with the simulated market conditions.
-        # Let's ensure the get_price() method for bootstrap uses the specific price attribute we set.
-        # To do this, we need to ensure the `bootstrap` method in `YieldCurve` can access this `price`.
-        # The simplest way is to temporarily assign the calculated price to the instrument
-        # so `bootstrap` can pick it up.
-
-        for inst in portfolio.bills + portfolio.bonds + portfolio.inflation_linked_bonds:
-            if not hasattr(inst, 'price') or inst.price is None:
-                raise ValueError(f"Instrument {type(inst).__name__} does not have a price attribute.")
-            if inst.price <= 0: # Ensure positive prices for bootstrapping
-                st.warning(f"Instrument {type(inst).__name__} has non-positive price ({inst.price}), adjusting to 100 for bootstrap stability.")
-                inst.price = 100.0 # Fallback to a default price
-
-        # We must ensure that the `get_price()` method in `instrument_classes.py`
-        # when called by `YieldCurve.bootstrap()` actually returns the *market price* we just set.
-        # The current implementation of `get_price` in `Instrument` bases it on YTM.
-        # So, we need to ensure the YTM is consistent with the simulated market rates.
-        # The problem is that `bootstrap` is trying to infer the YTM from price, not the other way around.
-        # Let's modify the Instrument.get_price to prioritize a set 'market_price' if it exists.
-        # This requires a small change to instrument_classes.py, but for now, the approach above
-        # (setting inst.price directly and ensuring bootstrap can use it) is the target.
-
-        # The `bootstrap` method in `YieldCurve` currently calls `inst.get_price()`
-        # and if discount_rates is None, it uses the instrument's internal `ytm`.
-        # The issue is that we are setting `ytm` to what we *think* the market rate is for pricing,
-        # and then `bootstrap` tries to infer the zero rates *from* these prices.
-        # This implies that the `ytm` we set is indeed the "market" YTM of that instrument.
-
-        # The critical part is that when `bootstrap` calls `inst.get_price()`, it needs to
-        # correctly reflect the market price of the bond that is consistent with the yields
-        # it is trying to derive.
-
-        # A better approach: The `bootstrap` method should directly use the prices of the instruments.
-        # Currently, it calls `inst.get_price()` without passing `discount_rates`.
-        # This means `inst.get_price()` will use its own internal `self.ytm`.
-        # We need to ensure `self.ytm` for each instrument is set to a value
-        # that, when used to calculate `get_price()`, results in a price that accurately
-        # reflects a point on the "market curve" implied by `current_rates`.
-
-        # So, we are setting the YTMs of the instruments to reflect the simulated market rates.
-        # Then, their `get_price()` methods will correctly calculate their "market prices"
-        # based on these YTMs. The bootstrapping process then takes these "market prices"
-        # and their cash flows to build the zero curve.
-
+        # Set all cash flows for the portfolio
         portfolio.set_cash_flows()
         return portfolio
 
