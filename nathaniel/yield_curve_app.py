@@ -95,6 +95,13 @@ def main():
             'long_term': drift_long,
             'inflation': drift_inflation
         }
+        # Define the correlation matrix using the sidebar parameters
+        correlation_matrix = np.array([
+            [1.0, corr_short_medium, corr_short_long, corr_short_inflation],
+            [corr_short_medium, 1.0, corr_medium_long, corr_medium_inflation],
+            [corr_short_long, corr_medium_long, 1.0, corr_long_inflation],
+            [corr_short_inflation, corr_medium_inflation, corr_long_inflation, 1.0]
+        ])
         simulator.correlation_matrix = correlation_matrix
         
         st.session_state.simulator = simulator
