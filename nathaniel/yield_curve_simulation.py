@@ -310,34 +310,28 @@ class YieldCurveSimulator:
         return self.get_current_curves()
 
     def plot_yield_curves(self, zero_rates_df, selected_time_steps=None):
-        """Plot yield curves for selected time steps."""
-        if selected_time_steps is None:
-            time_steps = zero_rates_df['time_step'].unique()
-            selected_time_steps = [time_steps[0], time_steps[len(time_steps)//2], time_steps[-1]]
-        
+        """Plot initial and current yield curves."""
         fig, ax = plt.subplots(figsize=(10, 6))
         
         # Get maturity columns and convert to floats for plotting
         maturities = [float(col) for col in zero_rates_df.columns if col != 'time_step']
-        maturities.sort()  # Ensure maturities are in ascending order
+        maturities.sort()
         
-        for step in selected_time_steps:
+        # Plot only initial and current curves
+        time_steps = [zero_rates_df['time_step'].min(), zero_rates_df['time_step'].max()]
+        labels = ['Initial Curve', 'Current Curve']
+        colors = ['blue', 'red']
+        
+        for step, label, color in zip(time_steps, labels, colors):
             curve_data = zero_rates_df[zero_rates_df['time_step'] == step]
             
             if not curve_data.empty:
-                # Access DataFrame columns using original column names
-                rates = []
-                for m in maturities:
-                    # Find the exact column name that matches this maturity
-                    col_name = next(col for col in zero_rates_df.columns 
-                                  if col != 'time_step' and abs(float(col) - m) < 1e-10)
-                    rates.append(curve_data[col_name].values[0])
-                
-                ax.plot(maturities, rates, marker='o', label=f'Time Step {step}')
+                rates = [curve_data[str(m)].values[0] for m in maturities]
+                ax.plot(maturities, rates, marker='o', label=label, color=color)
         
         ax.set_xlabel('Maturity (years)')
         ax.set_ylabel('Zero Rate')
-        ax.set_title('Simulated Yield Curves Over Time')
+        ax.set_title('Yield Curve Evolution')
         ax.legend()
         ax.grid(True)
         
