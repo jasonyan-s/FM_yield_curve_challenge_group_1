@@ -690,7 +690,8 @@ class MarketSimulation:
             "bank_bill": [],
             "bond": [],
             "fra": [],
-            "bond_forward": []
+            "bond_forward": [],
+            "multi_instrument": []  # New category for multi-instrument opportunities
         }
         
         # Check for arbitrage in FRAs (existing functionality)
@@ -767,8 +768,199 @@ class MarketSimulation:
                     "curve_rate": f"{interpolated_rate*100:.2f}%"
                 })
         
+        # Add multi-instrument opportunities
+        multi_opps = self.get_multi_instrument_arbitrage()
+        opportunities["multi_instrument"] = (
+            multi_opps["butterfly"] + 
+            multi_opps["calendar_spread"]
+        )
+        
         print(opportunities)
         return opportunities
+
+    def get_butterfly_arbitrage(self) -> List[Dict]:
+        """Detect butterfly arbitrage opportunities in yield curve"""
+        opportunities = []
+        
+        # Check bank bill butterfly opportunities
+        for i in range(len(self.bank_bills) - 2):
+            short_bill = self.bank_bills[i]
+            mid_bill = self.bank_bills[i + 1]
+            long_bill = self.bank_bills[i + 2]
+            
+            # Calculate theoretical middle rate based on linear interpolation
+            mid_days = mid_bill.maturity_days
+            weight = (mid_days - short_bill.maturity_days) / (long_bill.maturity_days - short_bill.maturity_days)
+            theoretical_mid_yield = short_bill.yield_rate + weight * (long_bill.yield_rate - short_bill.yield_rate)
+            
+            # If actual middle rate deviates significantly from theoretical, it's an arbitrage opportunity
+            if abs(mid_bill.yield_rate - theoretical_mid_yield) > 0.0005:  # 5 basis points threshold
+                opportunities.append({
+                    "type": "Butterfly",
+                    "instruments": [
+                        f"Bank Bill {i+1} ({short_bill.maturity_days}d)",
+                        f"Bank Bill {i+2} ({mid_bill.maturity_days}d)",
+                        f"Bank Bill {i+3} ({long_bill.maturity_days}d)"
+                    ],
+                    "action": "Buy Wings, Sell Body" if mid_bill.yield_rate > theoretical_mid_yield else "Sell Wings, Buy Body",
+                    "expected_profit": abs(mid_bill.yield_rate - theoretical_mid_yield) * 10000,  # Convert to basis points
+                    "details": f"Middle rate: {mid_bill.yield_rate*100:.3f}% vs Theoretical: {theoretical_mid_yield*100:.3f}%"
+                })
+        
+        # Similar check for bonds
+        for i in range(len(self.bonds) - 2):
+            short_bond = self.bonds[i]
+            mid_bond = self.bonds[i + 1]
+            long_bond = self.bonds[i + 2]
+            
+            # Calculate theoretical middle yield based on linear interpolation
+            mid_years = mid_bond.maturity_years
+            weight = (mid_years - short_bond.maturity_years) / (long_bond.maturity_years - short_bond.maturity_years)
+            theoretical_mid_ytm = short_bond.yield_to_maturity + weight * (long_bond.yield_to_maturity - short_bond.yield_to_maturity)
+            
+            if abs(mid_bond.yield_to_maturity - theoretical_mid_ytm) > 0.0005:
+                opportunities.append({
+                    "type": "Butterfly",
+                    "instruments": [
+                        f"Bond {i+1} ({short_bond.maturity_years}y)",
+                        f"Bond {i+2} ({mid_bond.maturity_years}y)",
+                        f"Bond {i+3} ({long_bond.maturity_years}y)"
+                    ],
+                    "action": "Buy Wings, Sell Body" if mid_bond.yield_to_maturity > theoretical_mid_ytm else "Sell Wings, Buy Body",
+                    "expected_profit": abs(mid_bond.yield_to_maturity - theoretical_mid_ytm) * 10000,
+                    "details": f"Middle YTM: {mid_bond.yield_to_maturity*100:.3f}% vs Theoretical: {theoretical_mid_ytm*100:.3f}%"
+                })
+                
+        return opportunities
+    
+    def get_calendar_spread_arbitrage(self) -> List[Dict]:
+        """Detect calendar spread arbitrage opportunities in forwards"""
+        opportunities = []
+        
+        # Check for FRA calendar spread opportunities
+        for i in range(len(self.fras)):
+            for j in range(i + 1, len(self.fras)):
+                fra1 = self.fras[i]
+                fra2 = self.fras[j]
+                
+                # Only compare FRAs with same underlying but different settlement
+                if fra1.underlying_bill.maturity_days == fra2.underlying_bill.maturity_days:
+                    theoretical_spread = (fra2.calculate_theoretical_forward_rate() - 
+                                       fra1.calculate_theoretical_forward_rate())
+                    actual_spread = fra2.forward_rate - fra1.forward_rate
+                    
+                    if abs(actual_spread - theoretical_spread) > 0.0005:
+                        opportunities.append({
+                            "type": "Calendar Spread",
+                            "instruments": [
+                                f"FRA {i+1} (Settle: {fra1.settlement_days}d)",
+                                f"FRA {j+1} (Settle: {fra2.settlement_days}d)"
+                            ],
+                            "action": ("Buy Near/Sell Far" if actual_spread > theoretical_spread 
+                                     else "Sell Near/Buy Far"),
+                            "expected_profit": abs(actual_spread - theoretical_spread) * 10000,
+                            "details": f"Actual spread: {actual_spread*100:.3f}% vs Theoretical: {theoretical_spread*100:.3f}%"
+                        })
+        
+        # Similar check for bond forwards
+        for i in range(len(self.bond_forwards)):
+            for j in range(i + 1, len(self.bond_forwards)):
+                bf1 = self.bond_forwards[i]
+                bf2 = self.bond_forwards[j]
+                
+                if bf1.underlying_bond.maturity_years == bf2.underlying_bond.maturity_years:
+                    theoretical_spread = (bf2.calculate_theoretical_forward_yield() - 
+                                       bf1.calculate_theoretical_forward_yield())
+                    actual_spread = bf2.forward_yield - bf1.forward_yield
+                    
+                    if abs(actual_spread - theoretical_spread) > 0.0005:
+                        opportunities.append({
+                            "type": "Calendar Spread",
+                            "instruments": [
+                                f"Bond Forward {i+1} (Settle: {bf1.settlement_days}d)",
+                                f"Bond Forward {j+1} (Settle: {bf2.settlement_days}d)"
+                            ],
+                            "action": ("Buy Near/Sell Far" if actual_spread > theoretical_spread 
+                                     else "Sell Near/Buy Far"),
+                            "expected_profit": abs(actual_spread - theoretical_spread) * 10000,
+                            "details": f"Actual spread: {actual_spread*100:.3f}% vs Theoretical: {theoretical_spread*100:.3f}%"
+                        })
+        
+        return opportunities
+
+    def get_triangulation_arbitrage(self) -> List[Dict]:
+        """Detect triangulation arbitrage opportunities between instruments"""
+        opportunities = []
+        
+        # Check for triangulation between bank bill, FRA, and implied forward
+        for bill in self.bank_bills:
+            for fra in self.fras:
+                if fra.underlying_bill.maturity_days == bill.maturity_days:
+                    # Calculate implied forward rate from spot rates
+                    spot_rate = bill.yield_rate
+                    forward_rate = fra.forward_rate
+                    settlement_years = fra.settlement_days / 365
+                    maturity_years = bill.maturity_days / 365
+                    
+                    # Calculate theoretical forward rate from spot rates
+                    implied_forward = ((1 + spot_rate * (settlement_years + maturity_years)) / 
+                                    (1 + spot_rate * settlement_years) - 1) * (365 / bill.maturity_days)
+                    
+                    # If difference between actual and implied forward rate is significant
+                    if abs(forward_rate - implied_forward) > 0.0005:  # 5 basis points threshold
+                        opportunities.append({
+                            "type": "Triangulation",
+                            "instruments": [
+                                f"Bank Bill ({bill.maturity_days}d)",
+                                f"FRA (Settle: {fra.settlement_days}d)",
+                                "Implied Forward"
+                            ],
+                            "action": ("Buy Bill+FRA/Sell Forward" if forward_rate > implied_forward 
+                                     else "Sell Bill+FRA/Buy Forward"),
+                            "expected_profit": abs(forward_rate - implied_forward) * 10000,  # Convert to basis points
+                            "details": (f"Forward Rate: {forward_rate*100:.3f}% vs "
+                                      f"Implied: {implied_forward*100:.3f}%")
+                        })
+        
+        # Check for triangulation between bond, bond forward, and implied forward
+        for bond in self.bonds:
+            for bf in self.bond_forwards:
+                if bf.underlying_bond.maturity_years == bond.maturity_years:
+                    # Calculate implied forward yield from spot rates
+                    spot_yield = bond.yield_to_maturity
+                    forward_yield = bf.forward_yield
+                    settlement_years = bf.settlement_days / 365
+                    
+                    # Calculate theoretical forward yield using spot-forward relationship
+                    implied_forward_yield = ((1 + spot_yield) ** (bond.maturity_years) / 
+                                          (1 + spot_yield) ** (settlement_years) - 1) / (
+                                              bond.maturity_years - settlement_years)
+                    
+                    # If difference between actual and implied forward yield is significant
+                    if abs(forward_yield - implied_forward_yield) > 0.0005:
+                        opportunities.append({
+                            "type": "Triangulation",
+                            "instruments": [
+                                f"Bond ({bond.maturity_years}y)",
+                                f"Bond Forward (Settle: {bf.settlement_days}d)",
+                                "Implied Forward"
+                            ],
+                            "action": ("Buy Bond+Forward/Sell Implied" if forward_yield > implied_forward_yield 
+                                     else "Sell Bond+Forward/Buy Implied"),
+                            "expected_profit": abs(forward_yield - implied_forward_yield) * 10000,
+                            "details": (f"Forward Yield: {forward_yield*100:.3f}% vs "
+                                      f"Implied: {implied_forward_yield*100:.3f}%")
+                        })
+        
+        return opportunities
+
+    def get_multi_instrument_arbitrage(self) -> Dict[str, List[Dict]]:
+        """Get all multi-instrument arbitrage opportunities"""
+        return {
+            "butterfly": self.get_butterfly_arbitrage(),
+            "calendar_spread": self.get_calendar_spread_arbitrage(),
+            "triangulation": self.get_triangulation_arbitrage()
+        }
 
 # ---------------------- Streamlit App ----------------------
 
@@ -1474,7 +1666,7 @@ def main():
         st.info("No arbitrage opportunities have been detected yet in the simulation.")
     else:
         # Create tabs for FRA and Bond Forward arbitrage histories
-        arb_tab1, arb_tab2, arb_tab3 = st.tabs(["All Opportunities", "FRA Opportunities", "Bond Forward Opportunities"])
+        arb_tab1, arb_tab2, arb_tab3, arb_tab4 = st.tabs(["All Opportunities", "FRA Opportunities", "Bond Forward Opportunities", "Multi-Instrument Opportunities"])
         
         with arb_tab1:
             st.subheader("All Arbitrage Opportunities")
@@ -1537,12 +1729,12 @@ def main():
                 st.info("No arbitrage opportunities detected so far.")
         
         with arb_tab2:
-            st.subheader("Bank Bill Arbitrage Opportunities")
+            st.subheader("FRA Arbitrage Opportunities")
             
-            # Prepare Bank Bill opportunities for display
-            bank_bill_opps = []
-            for opp in st.session_state.arbitrage_history["bank_bill"]:
-                bank_bill_opps.append({
+            # Prepare FRA opportunities for display
+            fra_opps = []
+            for opp in st.session_state.arbitrage_history["fra"]:
+                fra_opps.append({
                     "Update": opp["update_count"],
                     "Time": opp["timestamp"],
                     "Instrument": opp["instrument"],
@@ -1550,18 +1742,16 @@ def main():
                     "Market Price": f"${opp['market_price']:.2f}",
                     "Theoretical Price": f"${opp['theoretical_price']:.2f}",
                     "Difference": f"${abs(opp['difference']):.2f}",
-                    "Market Rate": opp["market_rate"],
-                    "Curve Rate": opp["curve_rate"],
                     "Action": opp["action"],
                 })
             
             # Sort by update count (most recent first)
-            bank_bill_opps = sorted(bank_bill_opps, key=lambda x: x["Update"], reverse=True)
+            fra_opps = sorted(fra_opps, key=lambda x: x["Update"], reverse=True)
             
             # Display as dataframe
-            if bank_bill_opps:
+            if fra_opps:
                 st.dataframe(
-                    bank_bill_opps,
+                    fra_opps,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
@@ -1573,15 +1763,15 @@ def main():
                     }
                 )
             else:
-                st.info("No Bank Bill arbitrage opportunities detected so far.")
+                st.info("No FRA arbitrage opportunities detected so far.")
         
         with arb_tab3:
-            st.subheader("Bond Arbitrage Opportunities")
+            st.subheader("Bond Forward Arbitrage Opportunities")
             
-            # Prepare Bond opportunities for display
-            bond_opps = []
-            for opp in st.session_state.arbitrage_history["bond"]:
-                bond_opps.append({
+            # Prepare Bond Forward opportunities for display
+            bf_opps = []
+            for opp in st.session_state.arbitrage_history["bond_forward"]:
+                bf_opps.append({
                     "Update": opp["update_count"],
                     "Time": opp["timestamp"],
                     "Instrument": opp["instrument"],
@@ -1589,18 +1779,16 @@ def main():
                     "Market Price": f"${opp['market_price']:.2f}",
                     "Theoretical Price": f"${opp['theoretical_price']:.2f}",
                     "Difference": f"${abs(opp['difference']):.2f}",
-                    "Market Rate": opp["market_rate"],
-                    "Curve Rate": opp["curve_rate"],
                     "Action": opp["action"],
                 })
             
             # Sort by update count (most recent first)
-            bond_opps = sorted(bond_opps, key=lambda x: x["Update"], reverse=True)
+            bf_opps = sorted(bf_opps, key=lambda x: x["Update"], reverse=True)
             
             # Display as dataframe
-            if bond_opps:
+            if bf_opps:
                 st.dataframe(
-                    bond_opps,
+                    bf_opps,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
@@ -1612,17 +1800,57 @@ def main():
                     }
                 )
             else:
-                st.info("No Bond arbitrage opportunities detected so far.")
+                st.info("No Bond Forward arbitrage opportunities detected so far.")
         
-        # Display trading strategy explanation
-        st.markdown("""
-        <div style="text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px;">
-            <h4>Trading Strategy:</h4>
-            <p><b>Buy</b> when market price is <b>below</b> theoretical price (undervalued)</p>
-            <p><b>Sell</b> when market price is <b>above</b> theoretical price (overvalued)</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        with arb_tab4:
+            st.subheader("Multi-Instrument Arbitrage Opportunities")
+            
+            multi_opps = st.session_state.market_sim.get_multi_instrument_arbitrage()
+            
+            if (not multi_opps["butterfly"] and 
+                not multi_opps["calendar_spread"] and 
+                not multi_opps["triangulation"]):
+                st.info("No multi-instrument arbitrage opportunities detected.")
+            else:
+                st.subheader("Butterfly Arbitrage")
+                if multi_opps["butterfly"]:
+                    st.dataframe(
+                        multi_opps["butterfly"],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("No butterfly arbitrage opportunities detected.")
+                
+                st.subheader("Calendar Spread Arbitrage")
+                if multi_opps["calendar_spread"]:
+                    st.dataframe(
+                        multi_opps["calendar_spread"],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("No calendar spread arbitrage opportunities detected.")
+                
+                st.subheader("Triangulation Arbitrage")
+                if multi_opps["triangulation"]:
+                    st.dataframe(
+                        multi_opps["triangulation"],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("No triangulation arbitrage opportunities detected.")
+
+    # Display trading strategy explanation
+    st.markdown("""
+    <div style="text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px;">
+        <h4>Trading Strategy:</h4>
+        <p><b>Buy</b> when market price is <b>below</b> theoretical price (undervalued)</p>
+        <p><b>Sell</b> when market price is <b>above</b> theoretical price (overvalued)</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Auto-update functionality
     if 'auto_update' in locals() and auto_update:
         time.sleep(update_interval)
