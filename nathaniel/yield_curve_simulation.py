@@ -314,32 +314,45 @@ class YieldCurveSimulator:
         fig, ax = plt.subplots(figsize=(10, 6))
         
         # Get maturity columns and ensure they exist in the DataFrame
-        maturities = sorted([float(col) for col in zero_rates_df.columns if col != 'time_step'])
+        maturities = []
+        initial_rates = []
+        current_rates = []
         
-        # Plot only initial and current curves
         if not zero_rates_df.empty:
             min_step = zero_rates_df['time_step'].min()
             max_step = zero_rates_df['time_step'].max()
             
-            # Plot initial curve
-            initial_data = zero_rates_df[zero_rates_df['time_step'] == min_step]
-            if not initial_data.empty:
-                rates = []
-                for m in maturities:
-                    col_name = str(m)
-                    if col_name in initial_data.columns:
-                        rates.append(initial_data[col_name].iloc[0])
-                ax.plot(maturities, rates, marker='o', label='Initial Curve', color='blue')
+            # Get columns that represent maturities
+            maturity_cols = [col for col in zero_rates_df.columns if col != 'time_step']
             
-            # Plot current curve
+            # Get initial and current data
+            initial_data = zero_rates_df[zero_rates_df['time_step'] == min_step]
             current_data = zero_rates_df[zero_rates_df['time_step'] == max_step]
-            if not current_data.empty:
-                rates = []
-                for m in maturities:
-                    col_name = str(m)
-                    if col_name in current_data.columns:
-                        rates.append(current_data[col_name].iloc[0])
-                ax.plot(maturities, rates, marker='o', label='Current Curve', color='red')
+            
+            # Build arrays only for maturities that have valid data
+            for col in maturity_cols:
+                if col in initial_data.columns and col in current_data.columns:
+                    try:
+                        mat = float(col)
+                        init_rate = initial_data[col].iloc[0]
+                        curr_rate = current_data[col].iloc[0]
+                        
+                        if not (np.isnan(init_rate) or np.isnan(curr_rate)):
+                            maturities.append(mat)
+                            initial_rates.append(init_rate)
+                            current_rates.append(curr_rate)
+                    except (ValueError, IndexError):
+                        continue
+            
+            # Sort by maturity
+            sorted_indices = np.argsort(maturities)
+            maturities = np.array(maturities)[sorted_indices]
+            initial_rates = np.array(initial_rates)[sorted_indices]
+            current_rates = np.array(current_rates)[sorted_indices]
+            
+            # Plot curves
+            ax.plot(maturities, initial_rates, marker='o', label='Initial Curve', color='blue')
+            ax.plot(maturities, current_rates, marker='o', label='Current Curve', color='red')
         
         ax.set_xlabel('Maturity (years)')
         ax.set_ylabel('Zero Rate')
