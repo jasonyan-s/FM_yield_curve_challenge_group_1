@@ -57,6 +57,8 @@ class BankBill:
             maturity=self.maturity_days/365,
             ytm=yield_rate
         )
+        temp_bill.set_ytm(yield_rate)
+        print(f" face value is {self.face_value}, maturity is {self.maturity_days/365}, yield_rate is {yield_rate}, price is {temp_bill.price}")
         return temp_bill.get_price()
     
     def calculate_yield_from_price(self, price: float) -> float:
@@ -137,6 +139,8 @@ class Bond:
             frequency=self.frequency,
             ytm=ytm
         )
+        temp_bond.set_ytm(ytm)
+
         return temp_bond.get_price()
     
     def calculate_ytm_from_price(self, price: float, tolerance: float = 1e-10) -> float:
@@ -720,9 +724,12 @@ class MarketSimulation:
         for i, bill in enumerate(self.bank_bills):
             maturity_years = bill.maturity_days / 365
             interpolated_rate = self.yield_curve.get_interpolated_rate(maturity_years)
+            print(f"Interpolated rate for {bill.maturity_days} days: {interpolated_rate*100:.2f}%")
             
             # Calculate theoretical price based on interpolated rate
             theoretical_price = bill.calculate_price_from_yield(interpolated_rate)
+            print(f"Theoretical price for {bill.maturity_days} days: ${theoretical_price:.2f}")
+            print(f"Bill market price: ${bill.price:.2f}")
             diff = bill.price - theoretical_price
             
             # If difference is significant, consider it an arbitrage opportunity
@@ -760,6 +767,7 @@ class MarketSimulation:
                     "curve_rate": f"{interpolated_rate*100:.2f}%"
                 })
         
+        print(opportunities)
         return opportunities
 
 # ---------------------- Streamlit App ----------------------
@@ -960,6 +968,11 @@ def main():
                 if st.button("Reset Market", use_container_width=True):
                     # Reset just the market prices without changing structure
                     with st.spinner("Resetting market prices..."):
+                        # Define initial rates based on sidebar parameters
+                        initial_short_rate = rate_30d
+                        initial_medium_rate = rate_2y
+                        initial_long_rate = rate_10y
+                        
                         # Reset rates to initial values
                         for i, bill in enumerate(st.session_state.market_sim.bank_bills):
                             maturity_years = bill.maturity_days / 365

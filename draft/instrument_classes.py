@@ -28,7 +28,7 @@ class CashFlows:
 # create a class for a bond that inherits from CashFlows
 class Bank_bill(CashFlows):
 
-    def __init__(self, face_value=100, maturity=.25, ytm=0.00, price=100):
+    def __init__(self, face_value=1000000, maturity=.25, ytm=0.00, price=1000000):
         super().__init__()
         self.face_value = face_value
         self.maturity = maturity
@@ -68,7 +68,7 @@ class Bank_bill(CashFlows):
 # create a class for a bond that inherits from CashFlows
 class Bond(CashFlows):
     
-    def __init__(self, face_value=100, maturity=3, coupon=0, frequency=4, ytm=0, price=100):
+    def __init__(self, face_value=1000000, maturity=3, coupon=0, frequency=4, ytm=0, price=1000000):
         super().__init__()
         self.face_value = face_value    
         self.maturity = maturity
@@ -92,9 +92,9 @@ class Bond(CashFlows):
     def set_ytm(self, ytm):
         self.ytm = ytm
         # set the price of the bond using the bond formula
+        
         self.price = (self.face_value*self.coupon/self.frequency)*(1-(1+ytm/self.frequency)**(-self.maturity*self.frequency))/(ytm/self.frequency) \
           + self.face_value/((1 + ytm/self.frequency)**(self.maturity*self.frequency))
-
     def get_price(self):
         return self.price
     
