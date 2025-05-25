@@ -313,21 +313,33 @@ class YieldCurveSimulator:
         """Plot initial and current yield curves."""
         fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Get maturity columns and convert to floats for plotting
-        maturities = [float(col) for col in zero_rates_df.columns if col != 'time_step']
-        maturities.sort()
+        # Get maturity columns and ensure they exist in the DataFrame
+        maturities = sorted([float(col) for col in zero_rates_df.columns if col != 'time_step'])
         
         # Plot only initial and current curves
-        time_steps = [zero_rates_df['time_step'].min(), zero_rates_df['time_step'].max()]
-        labels = ['Initial Curve', 'Current Curve']
-        colors = ['blue', 'red']
-        
-        for step, label, color in zip(time_steps, labels, colors):
-            curve_data = zero_rates_df[zero_rates_df['time_step'] == step]
+        if not zero_rates_df.empty:
+            min_step = zero_rates_df['time_step'].min()
+            max_step = zero_rates_df['time_step'].max()
             
-            if not curve_data.empty:
-                rates = [curve_data[str(m)].values[0] for m in maturities]
-                ax.plot(maturities, rates, marker='o', label=label, color=color)
+            # Plot initial curve
+            initial_data = zero_rates_df[zero_rates_df['time_step'] == min_step]
+            if not initial_data.empty:
+                rates = []
+                for m in maturities:
+                    col_name = str(m)
+                    if col_name in initial_data.columns:
+                        rates.append(initial_data[col_name].iloc[0])
+                ax.plot(maturities, rates, marker='o', label='Initial Curve', color='blue')
+            
+            # Plot current curve
+            current_data = zero_rates_df[zero_rates_df['time_step'] == max_step]
+            if not current_data.empty:
+                rates = []
+                for m in maturities:
+                    col_name = str(m)
+                    if col_name in current_data.columns:
+                        rates.append(current_data[col_name].iloc[0])
+                ax.plot(maturities, rates, marker='o', label='Current Curve', color='red')
         
         ax.set_xlabel('Maturity (years)')
         ax.set_ylabel('Zero Rate')
