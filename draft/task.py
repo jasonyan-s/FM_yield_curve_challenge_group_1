@@ -683,10 +683,13 @@ class MarketSimulation:
     def get_arbitrage_opportunities(self) -> Dict:
         """Get all arbitrage opportunities in the market"""
         opportunities = {
+            "bank_bill": [],
+            "bond": [],
             "fra": [],
             "bond_forward": []
         }
         
+        # Check for arbitrage in FRAs (existing functionality)
         for i, fra in enumerate(self.fras):
             has_opp, diff = fra.calculate_arbitrage_opportunity()
             if has_opp:
@@ -699,6 +702,7 @@ class MarketSimulation:
                     "action": "Buy" if diff < 0 else "Sell"
                 })
         
+        # Check for arbitrage in Bond Forwards (existing functionality)
         for i, bf in enumerate(self.bond_forwards):
             has_opp, diff = bf.calculate_arbitrage_opportunity()
             if has_opp:
@@ -709,6 +713,51 @@ class MarketSimulation:
                     "theoretical_price": bf.calculate_price_from_forward_yield(bf.calculate_theoretical_forward_yield()),
                     "difference": diff,
                     "action": "Buy" if diff < 0 else "Sell"
+                })
+        
+        # NEW: Check for yield curve arbitrage between bank bills
+        # Compare each bank bill with the yield curve's interpolated rate
+        for i, bill in enumerate(self.bank_bills):
+            maturity_years = bill.maturity_days / 365
+            interpolated_rate = self.yield_curve.get_interpolated_rate(maturity_years)
+            
+            # Calculate theoretical price based on interpolated rate
+            theoretical_price = bill.calculate_price_from_yield(interpolated_rate)
+            diff = bill.price - theoretical_price
+            
+            # If difference is significant, consider it an arbitrage opportunity
+            if abs(diff) > 1000:  # Threshold for meaningful arbitrage
+                opportunities["bank_bill"].append({
+                    "instrument": f"Bank Bill {i+1}",
+                    "description": f"Maturity: {bill.maturity_days} days",
+                    "market_price": bill.price,
+                    "theoretical_price": theoretical_price,
+                    "difference": diff,
+                    "action": "Buy" if diff < 0 else "Sell",
+                    "market_rate": f"{bill.yield_rate*100:.2f}%",
+                    "curve_rate": f"{interpolated_rate*100:.2f}%"
+                })
+        
+        # NEW: Check for yield curve arbitrage between bonds
+        # Compare each bond with the yield curve's interpolated rate
+        for i, bond in enumerate(self.bonds):
+            interpolated_rate = self.yield_curve.get_interpolated_rate(bond.maturity_years)
+            
+            # Calculate theoretical price based on interpolated rate
+            theoretical_price = bond.calculate_price_from_ytm(interpolated_rate)
+            diff = bond.price - theoretical_price
+            
+            # If difference is significant, consider it an arbitrage opportunity
+            if abs(diff) > 2000:  # Threshold for meaningful arbitrage
+                opportunities["bond"].append({
+                    "instrument": f"Bond {i+1}",
+                    "description": f"Maturity: {bond.maturity_years} years, Coupon: {bond.coupon_rate*100:.2f}%",
+                    "market_price": bond.price,
+                    "theoretical_price": theoretical_price,
+                    "difference": diff,
+                    "action": "Buy" if diff < 0 else "Sell",
+                    "market_rate": f"{bond.yield_to_maturity*100:.2f}%",
+                    "curve_rate": f"{interpolated_rate*100:.2f}%"
                 })
         
         return opportunities
@@ -747,18 +796,16 @@ def main():
     # Create sidebar for simulation parameters
     st.sidebar.header("Simulation Parameters")
     
-    # Market structure parameters
-    st.sidebar.subheader("Market Structure")
-    num_bank_bills = st.sidebar.slider("Number of Bank Bills", 2, 8, 4)
-    num_bonds = st.sidebar.slider("Number of Bonds", 2, 8, 4)
-    num_fras = st.sidebar.slider("Number of FRAs", 1, 5, 3)
-    num_bond_forwards = st.sidebar.slider("Number of Bond Forwards", 1, 5, 3)
-    
     # Yield curve parameters
     st.sidebar.subheader("Yield Curve Parameters")
-    initial_short_rate = st.sidebar.slider("Initial Short Rate (%)", 1.0, 10.0, 4.5, 0.1) / 100
-    initial_medium_rate = st.sidebar.slider("Initial Medium Rate (%)", 1.0, 10.0, 5.0, 0.1) / 100
-    initial_long_rate = st.sidebar.slider("Initial Long Rate (%)", 1.0, 10.0, 6.5, 0.1) / 100
+    rate_30d = st.sidebar.slider("30-day Rate (%)", 1.0, 10.0, 4.5, 0.1) / 100
+    rate_60d = st.sidebar.slider("60-day Rate (%)", 1.0, 10.0, 4.7, 0.1) / 100
+    rate_90d = st.sidebar.slider("90-day Rate (%)", 1.0, 10.0, 5.0, 0.1) / 100
+    rate_180d = st.sidebar.slider("180-day Rate (%)", 1.0, 10.0, 5.3, 0.1) / 100
+    rate_1y = st.sidebar.slider("1-year Rate (%)", 1.0, 10.0, 5.6, 0.1) / 100
+    rate_2y = st.sidebar.slider("2-year Rate (%)", 1.0, 10.0, 5.8, 0.1) / 100
+    rate_5y = st.sidebar.slider("5-year Rate (%)", 1.0, 10.0, 6.2, 0.1) / 100
+    rate_10y = st.sidebar.slider("10-year Rate (%)", 1.0, 10.0, 6.7, 0.1) / 100
     
     # Volatility parameters
     st.sidebar.subheader("Volatility Parameters")
@@ -781,13 +828,14 @@ def main():
         with st.spinner("Initializing market simulation..."):
             # Create custom market simulation with user parameters
             st.session_state.market_sim = create_custom_market_simulation(
-                num_bank_bills=num_bank_bills,
-                num_bonds=num_bonds,
-                num_fras=num_fras,
-                num_bond_forwards=num_bond_forwards,
-                initial_short_rate=initial_short_rate,
-                initial_medium_rate=initial_medium_rate,
-                initial_long_rate=initial_long_rate
+                rate_30d=rate_30d,
+                rate_60d=rate_60d,
+                rate_90d=rate_90d,
+                rate_180d=rate_180d,
+                rate_1y=rate_1y,
+                rate_2y=rate_2y,
+                rate_5y=rate_5y,
+                rate_10y=rate_10y
             )
             st.session_state.volatility = bill_volatility  # Default volatility
             st.session_state.update_count = 0
@@ -806,6 +854,13 @@ def main():
                 'bonds': [bond.price for bond in st.session_state.market_sim.bonds],
                 'fras': [fra.price for fra in st.session_state.market_sim.fras],
                 'bond_forwards': [bf.price for bf in st.session_state.market_sim.bond_forwards],
+            }
+            # Initialize cumulative arbitrage tracking with all instrument types
+            st.session_state.arbitrage_history = {
+                "bank_bill": [],
+                "bond": [],
+                "fra": [],
+                "bond_forward": []
             }
     
     # Main content
@@ -881,6 +936,20 @@ def main():
                             for i, bf in enumerate(st.session_state.market_sim.bond_forwards):
                                 st.session_state.price_history['bond_forwards'][i].append(bf.price)
                             
+                            # Track arbitrage opportunities
+                            opportunities = st.session_state.market_sim.get_arbitrage_opportunities()
+                            
+                            # Add update count to each opportunity for tracking when it occurred
+                            for opp in opportunities["fra"]:
+                                opp["update_count"] = st.session_state.update_count
+                                opp["timestamp"] = current_time.strftime("%H:%M:%S")
+                                st.session_state.arbitrage_history["fra"].append(opp)
+                            
+                            for opp in opportunities["bond_forward"]:
+                                opp["update_count"] = st.session_state.update_count
+                                opp["timestamp"] = current_time.strftime("%H:%M:%S")
+                                st.session_state.arbitrage_history["bond_forward"].append(opp)
+                            
                             # Add current yield curve snapshot if it's the last update
                             if _ == num_time_steps - 1:
                                 maturities = st.session_state.market_sim.yield_curve.maturities
@@ -939,7 +1008,8 @@ def main():
             
             # Display arbitrage opportunities summary
             opportunities = st.session_state.market_sim.get_arbitrage_opportunities()
-            total_opportunities = len(opportunities["fra"]) + len(opportunities["bond_forward"])
+            total_opportunities = (len(opportunities["bank_bill"]) + len(opportunities["bond"]) + 
+                                  len(opportunities["fra"]) + len(opportunities["bond_forward"]))
             
             if total_opportunities > 0:
                 st.markdown(f"""
@@ -1003,7 +1073,7 @@ def main():
                     for i, history in st.session_state.price_history['bank_bills'].items():
                         if history:
                             bill = st.session_state.market_sim.bank_bills[i]
-                            ax.plot(range(len(history)), history, '-o', label=f"Bill {i+1} ({bill.maturity_days} days)")
+                            ax.plot(range(len(history)), history, '-', label=f"Bill {i+1} ({bill.maturity_days} days)")
                     
                     ax.set_xlabel('Market Updates')
                     ax.set_ylabel('Price ($)')
@@ -1018,7 +1088,7 @@ def main():
                     for i, history in st.session_state.price_history['bonds'].items():
                         if history:
                             bond = st.session_state.market_sim.bonds[i]
-                            ax.plot(range(len(history)), history, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+                            ax.plot(range(len(history)), history, '-', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
                     
                     ax.set_xlabel('Market Updates')
                     ax.set_ylabel('Price ($)')
@@ -1033,7 +1103,7 @@ def main():
                     for i, history in st.session_state.price_history['fras'].items():
                         if history:
                             fra = st.session_state.market_sim.fras[i]
-                            ax.plot(range(len(history)), history, '-o', 
+                            ax.plot(range(len(history)), history, '-', 
                                    label=f"FRA {i+1} (Bill: {fra.underlying_bill.maturity_days}d, Settle: {fra.settlement_days}d)")
                     
                     ax.set_xlabel('Market Updates')
@@ -1049,7 +1119,7 @@ def main():
                     for i, history in st.session_state.price_history['bond_forwards'].items():
                         if history:
                             bf = st.session_state.market_sim.bond_forwards[i]
-                            ax.plot(range(len(history)), history, '-o', 
+                            ax.plot(range(len(history)), history, '-', 
                                    label=f"BF {i+1} (Bond: {bf.underlying_bond.maturity_years}y, Settle: {bf.settlement_days}d)")
                     
                     ax.set_xlabel('Market Updates')
@@ -1086,7 +1156,7 @@ def main():
                             rates.append(temp_bill.yield_rate * 100)  # Convert to percentage
 
                         if rates:
-                            ax.plot(range(len(rates)), rates, '-o', label=f"Bill {i+1} ({bill.maturity_days} days)")
+                            ax.plot(range(len(rates)), rates, '-', label=f"Bill {i+1} ({bill.maturity_days} days)")
 
                     ax.set_xlabel('Market Updates')
                     ax.set_ylabel('Yield Rate (%)')
@@ -1117,7 +1187,7 @@ def main():
                                 rates.append(temp_bond.yield_to_maturity * 100)  # Convert to percentage
 
                             if rates:
-                                ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+                                ax.plot(range(len(rates)), rates, '-', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
                     
                     ax.set_xlabel('Market Updates')
                     ax.set_ylabel('Price ($)')
@@ -1186,7 +1256,7 @@ def main():
                             rates.append(temp_fra.forward_rate * 100)  # Convert to percentage
 
                         if rates:
-                            ax.plot(range(len(rates)), rates, '-o',
+                            ax.plot(range(len(rates)), rates, '-',
                                     label=f"FRA {i+1} (Bill: {fra.underlying_bill.maturity_days}d, Settle: {fra.settlement_days}d)")
 
                     ax.set_xlabel('Market Updates')
@@ -1212,7 +1282,7 @@ def main():
                             rates.append(temp_bf.forward_yield * 100)  # Convert to percentage
 
                         if rates:
-                            ax.plot(range(len(rates)), rates, '-o',
+                            ax.plot(range(len(rates)), rates, '-',
                                     label=f"BF {i+1} (Bond: {bf.underlying_bond.maturity_years}y, Settle: {bf.settlement_days}d)")
 
                     ax.set_xlabel('Market Updates')
@@ -1384,51 +1454,154 @@ def main():
                     """, unsafe_allow_html=True)
     
     # Arbitrage Opportunities Detailed Section
-    st.header("Arbitrage Opportunities Dashboard")
-    
-    opportunities = st.session_state.market_sim.get_arbitrage_opportunities()
-    
-    if not opportunities["fra"] and not opportunities["bond_forward"]:
-        st.info("No arbitrage opportunities currently exist in the market.")
+    st.header("Arbitrage Opportunities History Dashboard")
+
+    # Check if we have any arbitrage history
+    if not st.session_state.arbitrage_history["fra"] and not st.session_state.arbitrage_history["bond_forward"]:
+        st.info("No arbitrage opportunities have been detected yet in the simulation.")
     else:
-        col1, col2 = st.columns(2)
+        # Create tabs for FRA and Bond Forward arbitrage histories
+        arb_tab1, arb_tab2, arb_tab3 = st.tabs(["All Opportunities", "FRA Opportunities", "Bond Forward Opportunities"])
         
-        with col1:
-            if opportunities["fra"]:
-                st.subheader("FRA Arbitrage Opportunities")
+        with arb_tab1:
+            st.subheader("All Arbitrage Opportunities")
+            
+            # Combine all arbitrage opportunities
+            all_opps = []
+            for opp in st.session_state.arbitrage_history["fra"]:
+                all_opps.append({
+                    "Update": opp["update_count"],
+                    "Time": opp["timestamp"],
+                    "Type": "FRA",
+                    "Instrument": opp["instrument"],
+                    "Description": opp["description"],
+                    "Market Price": f"${opp['market_price']:.2f}",
+                    "Theoretical Price": f"${opp['theoretical_price']:.2f}",
+                    "Difference": f"${abs(opp['difference']):.2f}",
+                    "Action": opp["action"],
+                })
                 
-                for opp in opportunities["fra"]:
-                    st.markdown(f"""
-                    <div class="card arbitrage-opportunity">
-                        <h4>{opp["instrument"]}</h4>
-                        <p>{opp["description"]}</p>
-                        <p>Market Price: <b>${opp["market_price"]:.2f}</b></p>
-                        <p>Theoretical Price: <b>${opp["theoretical_price"]:.2f}</b></p>
-                        <p>Difference: <b>${abs(opp["difference"]):.2f}</b></p>
-                        <p>Action: <b style="color: {'green' if opp["action"] == 'Buy' else 'red'}">
-                            {opp["action"]}
-                        </b></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+            for opp in st.session_state.arbitrage_history["bond_forward"]:
+                all_opps.append({
+                    "Update": opp["update_count"],
+                    "Time": opp["timestamp"],
+                    "Type": "Bond Forward",
+                    "Instrument": opp["instrument"],
+                    "Description": opp["description"],
+                    "Market Price": f"${opp['market_price']:.2f}",
+                    "Theoretical Price": f"${opp['theoretical_price']:.2f}",
+                    "Difference": f"${abs(opp['difference']):.2f}",
+                    "Action": opp["action"],
+                })
+            
+            # Sort by update count (most recent first)
+            all_opps = sorted(all_opps, key=lambda x: x["Update"], reverse=True)
+            
+            # Display as dataframe
+            if all_opps:
+                st.dataframe(
+                    all_opps,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Action": st.column_config.TextColumn(
+                            "Action",
+                            help="Buy or Sell recommendation",
+                            width="small",
+                        ),
+                        "Update": st.column_config.NumberColumn(
+                            "Update",
+                            help="Market update when opportunity was found",
+                            format="%d",
+                        ),
+                        "Difference": st.column_config.TextColumn(
+                            "Profit Potential",
+                            help="Potential profit from arbitrage",
+                        )
+                    }
+                )
+            else:
+                st.info("No arbitrage opportunities detected so far.")
         
-        with col2:
-            if opportunities["bond_forward"]:
-                st.subheader("Bond Forward Arbitrage Opportunities")
-                
-                for opp in opportunities["bond_forward"]:
-                    st.markdown(f"""
-                    <div class="card arbitrage-opportunity">
-                        <h4>{opp["instrument"]}</h4>
-                        <p>{opp["description"]}</p>
-                        <p>Market Price: <b>${opp["market_price"]:.2f}</b></p>
-                        <p>Theoretical Price: <b>${opp["theoretical_price"]:.2f}</b></p>
-                        <p>Difference: <b>${abs(opp["difference"]):.2f}</b></p>
-                        <p>Action: <b style="color: {'green' if opp["action"] == 'Buy' else 'red'}">
-                            {opp["action"]}
-                        </b></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+        with arb_tab2:
+            st.subheader("Bank Bill Arbitrage Opportunities")
+            
+            # Prepare Bank Bill opportunities for display
+            bank_bill_opps = []
+            for opp in st.session_state.arbitrage_history["bank_bill"]:
+                bank_bill_opps.append({
+                    "Update": opp["update_count"],
+                    "Time": opp["timestamp"],
+                    "Instrument": opp["instrument"],
+                    "Description": opp["description"],
+                    "Market Price": f"${opp['market_price']:.2f}",
+                    "Theoretical Price": f"${opp['theoretical_price']:.2f}",
+                    "Difference": f"${abs(opp['difference']):.2f}",
+                    "Market Rate": opp["market_rate"],
+                    "Curve Rate": opp["curve_rate"],
+                    "Action": opp["action"],
+                })
+            
+            # Sort by update count (most recent first)
+            bank_bill_opps = sorted(bank_bill_opps, key=lambda x: x["Update"], reverse=True)
+            
+            # Display as dataframe
+            if bank_bill_opps:
+                st.dataframe(
+                    bank_bill_opps,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Action": st.column_config.TextColumn(
+                            "Action",
+                            help="Buy or Sell recommendation",
+                            width="small",
+                        ),
+                    }
+                )
+            else:
+                st.info("No Bank Bill arbitrage opportunities detected so far.")
         
+        with arb_tab3:
+            st.subheader("Bond Arbitrage Opportunities")
+            
+            # Prepare Bond opportunities for display
+            bond_opps = []
+            for opp in st.session_state.arbitrage_history["bond"]:
+                bond_opps.append({
+                    "Update": opp["update_count"],
+                    "Time": opp["timestamp"],
+                    "Instrument": opp["instrument"],
+                    "Description": opp["description"],
+                    "Market Price": f"${opp['market_price']:.2f}",
+                    "Theoretical Price": f"${opp['theoretical_price']:.2f}",
+                    "Difference": f"${abs(opp['difference']):.2f}",
+                    "Market Rate": opp["market_rate"],
+                    "Curve Rate": opp["curve_rate"],
+                    "Action": opp["action"],
+                })
+            
+            # Sort by update count (most recent first)
+            bond_opps = sorted(bond_opps, key=lambda x: x["Update"], reverse=True)
+            
+            # Display as dataframe
+            if bond_opps:
+                st.dataframe(
+                    bond_opps,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Action": st.column_config.TextColumn(
+                            "Action",
+                            help="Buy or Sell recommendation",
+                            width="small",
+                        ),
+                    }
+                )
+            else:
+                st.info("No Bond arbitrage opportunities detected so far.")
+        
+        # Display trading strategy explanation
         st.markdown("""
         <div style="text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 5px; margin-top: 20px;">
             <h4>Trading Strategy:</h4>
@@ -1475,6 +1648,22 @@ def main():
             for i, bf in enumerate(st.session_state.market_sim.bond_forwards):
                 st.session_state.price_history['bond_forwards'][i].append(bf.price)
         
+        # Track arbitrage opportunities
+        opportunities = st.session_state.market_sim.get_arbitrage_opportunities()
+        
+        # Add update count to each opportunity for tracking when it occurred
+        for opp in opportunities["fra"]:
+            opp["update_count"] = st.session_state.update_count
+            opp["timestamp"] = current_time.strftime("%H:%M:%S")
+            st.session_state.arbitrage_history["fra"].append(opp)
+        
+
+        
+        for opp in opportunities["bond_forward"]:
+            opp["update_count"] = st.session_state.update_count
+            opp["timestamp"] = current_time.strftime("%H:%M:%S")
+            st.session_state.arbitrage_history["bond_forward"].append(opp)
+    
         # Add current yield curve snapshot
         maturities = st.session_state.market_sim.yield_curve.maturities
         yields = st.session_state.market_sim.yield_curve.yields
@@ -1482,54 +1671,26 @@ def main():
         
         st.rerun()
 
-def create_custom_market_simulation(num_bank_bills=4, num_bonds=4, num_fras=3, num_bond_forwards=3,
-                                   initial_short_rate=0.045, initial_medium_rate=0.05, initial_long_rate=0.065):
-    """Create a market simulation with customized number of instruments and initial rates"""
+def create_custom_market_simulation(
+    rate_30d=0.045, rate_60d=0.047, rate_90d=0.05, rate_180d=0.053,
+    rate_1y=0.056, rate_2y=0.058, rate_5y=0.062, rate_10y=0.067):
+    """Create a market simulation with specified yield rates for standard tenors"""
     
-    # Create bank bills with different maturities
-    bank_bills = []
-    for i in range(num_bank_bills):
-        # Spread maturities from 30 days to 270 days
-        if num_bank_bills <= 4:
-            # Use standard maturities: 30, 60, 90, 180 days
-            maturity_days = [30, 60, 90, 180][i]
-        else:
-            # For more than 4 bills, add additional maturities with tiny increments
-            if i < 4:
-                maturity_days = [30, 60, 90, 180][i]
-            else:
-            # Increase from 180 days by small increments
-                maturity_days = 180 + ((i - 3) * 10)  # 190, 200, 210, etc.
-        
-        # Assign yield based on maturity
-        maturity_years = maturity_days / 365
-        if maturity_years <= 0.5:
-            # Add tiny increment based on maturity to create upward slope
-            yield_rate = initial_short_rate + (maturity_years * 0.01)  # Small 1% per year slope
-        elif maturity_years <= 2:
-            yield_rate = initial_medium_rate
-        else:
-            yield_rate = initial_long_rate
-            
-        bank_bills.append(BankBill(maturity_days=maturity_days, yield_rate=yield_rate))
+    # Create bank bills with specific maturities and rates
+    bank_bills = [
+        BankBill(maturity_days=30, yield_rate=rate_30d),
+        BankBill(maturity_days=60, yield_rate=rate_60d),
+        BankBill(maturity_days=90, yield_rate=rate_90d),
+        BankBill(maturity_days=180, yield_rate=rate_180d)
+    ]
     
-    # Create bonds with different maturities
-    bonds = []
-    for i in range(num_bonds):
-        # Spread maturities from 1 to 10 years
-        maturity_years = 1 + (i * (9 / (num_bonds - 1)) if num_bonds > 1 else 0)
-        
-        # Assign yield based on maturity
-        if maturity_years <= 2:
-            ytm = initial_medium_rate
-            coupon = initial_medium_rate - 0.002  # Slight discount to current yield
-        else:
-            ytm = initial_long_rate
-            coupon = initial_long_rate - 0.003  # Slight discount to current yield
-            
-        bonds.append(Bond(maturity_years=maturity_years, 
-                          coupon_rate=coupon, 
-                          yield_to_maturity=ytm))
+    # Create bonds with specific maturities and rates
+    bonds = [
+        Bond(maturity_years=1, coupon_rate=rate_1y - 0.002, yield_to_maturity=rate_1y),
+        Bond(maturity_years=2, coupon_rate=rate_2y - 0.002, yield_to_maturity=rate_2y),
+        Bond(maturity_years=5, coupon_rate=rate_5y - 0.002, yield_to_maturity=rate_5y),
+        Bond(maturity_years=10, coupon_rate=rate_10y - 0.002, yield_to_maturity=rate_10y)
+    ]
     
     # Create market simulation
     market_sim = MarketSimulation()
@@ -1541,29 +1702,19 @@ def create_custom_market_simulation(num_bank_bills=4, num_bonds=4, num_fras=3, n
     # Create the yield curve
     market_sim.yield_curve = YieldCurve(market_sim.bank_bills, market_sim.bonds)
     
-    # Create FRAs
-    market_sim.fras = []
-    for i in range(min(num_fras, len(bank_bills))):
-        # Use different bank bills and settlement days
-        bill_index = i % len(bank_bills)
-        # Get distinct settlement days that match bill maturities
-        bill_maturities = [30, 60, 90, 180]
-        settlement_days = bill_maturities[i % len(bill_maturities)]
-        market_sim.fras.append(
-            ForwardRateAgreement(underlying_bill=market_sim.bank_bills[bill_index], 
-                                 settlement_days=settlement_days)
-        )
+    # Create standard FRAs
+    market_sim.fras = [
+        ForwardRateAgreement(underlying_bill=market_sim.bank_bills[2], settlement_days=90),  # 90-day bill, 90-day settlement
+        ForwardRateAgreement(underlying_bill=market_sim.bank_bills[2], settlement_days=180), # 90-day bill, 180-day settlement
+        ForwardRateAgreement(underlying_bill=market_sim.bank_bills[3], settlement_days=90)   # 180-day bill, 90-day settlement
+    ]
     
-    # Create Bond Forwards
-    market_sim.bond_forwards = []
-    for i in range(min(num_bond_forwards, len(bonds))):
-        # Use different bonds and settlement days
-        bond_index = i % len(bonds)
-        settlement_days = 90 + (i * 60)  # 90, 150, 210, etc.
-        market_sim.bond_forwards.append(
-            BondForward(underlying_bond=market_sim.bonds[bond_index], 
-                       settlement_days=settlement_days)
-        )
+    # Create standard Bond Forwards
+    market_sim.bond_forwards = [
+        BondForward(underlying_bond=market_sim.bonds[0], settlement_days=90),  # 1-year bond, 90-day settlement
+        BondForward(underlying_bond=market_sim.bonds[1], settlement_days=180), # 2-year bond, 180-day settlement
+        BondForward(underlying_bond=market_sim.bonds[2], settlement_days=90)   # 5-year bond, 90-day settlement
+    ]
     
     # Create a portfolio of all instruments
     market_sim.create_portfolio()
