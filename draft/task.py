@@ -267,7 +267,7 @@ class ForwardRateAgreement:
         theoretical_price = self.calculate_price_from_forward_rate(theoretical_rate)
         
         diff = self.price - theoretical_price
-        has_opportunity = abs(diff) > 1000  # Threshold for meaningful arbitrage
+        has_opportunity = abs(diff) > 10  # Threshold for meaningful arbitrage
         
         return has_opportunity, diff
     
@@ -393,7 +393,7 @@ class BondForward:
         theoretical_price = self.calculate_price_from_forward_yield(theoretical_yield)
         
         diff = self.price - theoretical_price
-        has_opportunity = abs(diff) > 2000  # Threshold for meaningful arbitrage
+        has_opportunity = abs(diff) > 20  # Threshold for meaningful arbitrage
         
         return has_opportunity, diff
     
@@ -733,7 +733,7 @@ class MarketSimulation:
             diff = bill.price - theoretical_price
             
             # If difference is significant, consider it an arbitrage opportunity
-            if abs(diff) > 1000:  # Threshold for meaningful arbitrage
+            if abs(diff) > 10:  # Threshold for meaningful arbitrage
                 opportunities["bank_bill"].append({
                     "instrument": f"Bank Bill {i+1}",
                     "description": f"Maturity: {bill.maturity_days} days",
@@ -755,7 +755,7 @@ class MarketSimulation:
             diff = bond.price - theoretical_price
             
             # If difference is significant, consider it an arbitrage opportunity
-            if abs(diff) > 2000:  # Threshold for meaningful arbitrage
+            if abs(diff) > 20:  # Threshold for meaningful arbitrage
                 opportunities["bond"].append({
                     "instrument": f"Bond {i+1}",
                     "description": f"Maturity: {bond.maturity_years} years, Coupon: {bond.coupon_rate*100:.2f}%",
