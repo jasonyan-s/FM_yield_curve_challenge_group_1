@@ -161,14 +161,20 @@ class YieldCurveSimulator:
 
         # Helper function to get a representative rate for a maturity
         def get_rate_for_maturity(maturity):
-            if maturity <= 0.5:
-                return rates['short_term']
-            elif maturity <= 2:
-                return 0.5 * (rates['short_term'] + rates['medium_term'])
-            elif maturity <= 5:
-                return rates['medium_term']
+            # Create smoother rate transitions
+            short_weight = max(0, min(1, (0.5 - maturity) / 0.5))
+            medium_weight = max(0, min(1, (5 - maturity) / 4.5)) if maturity > 0.5 else 0
+            long_weight = max(0, min(1, (maturity - 1) / 9)) if maturity > 1 else 0
+            
+            total_weight = short_weight + medium_weight + long_weight
+            if total_weight > 0:
+                rate = (rates['short_term'] * short_weight + 
+                       rates['medium_term'] * medium_weight + 
+                       rates['long_term'] * long_weight) / total_weight
             else:
-                return 0.7 * rates['medium_term'] + 0.3 * rates['long_term']
+                rate = rates['medium_term']  # fallback
+            
+            return rate
 
         # Create and initialize bills
         bill1 = instruments.Bank_bill(face_value=100, maturity=0.25)

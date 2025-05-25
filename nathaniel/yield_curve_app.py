@@ -56,13 +56,6 @@ def main():
     corr_medium_inflation = st.sidebar.slider("Medium-term/Inflation Correlation", -1.0, 1.0, 0.7, 0.1)
     corr_long_inflation = st.sidebar.slider("Long-term/Inflation Correlation", -1.0, 1.0, 0.9, 0.1)
     
-    # Initial rates
-    st.sidebar.subheader("Initial Rate Parameters")
-    initial_short = st.sidebar.slider("Initial Short-term Rate (%)", 0.0, 10.0, 3.0, 0.25) / 100
-    initial_medium = st.sidebar.slider("Initial Medium-term Rate (%)", 0.0, 10.0, 4.0, 0.25) / 100
-    initial_long = st.sidebar.slider("Initial Long-term Rate (%)", 0.0, 10.0, 5.0, 0.25) / 100
-    initial_inflation = st.sidebar.slider("Initial Inflation Rate (%)", 0.0, 10.0, 2.0, 0.25) / 100
-    
     # Add auto-update controls
     st.sidebar.subheader("Auto Update Settings")
     auto_update = st.sidebar.checkbox("Enable Auto Update", value=False)
@@ -172,28 +165,7 @@ def main():
     else:
         st.info("Adjust parameters on the sidebar and click 'Run Simulation' to start.")
         
-        # Display example yield curve
-        st.subheader("Example Yield Curve")
-        
-        # Create a simple example curve
-        maturities = [0.25, 0.5, 1, 2, 5, 10]
-        rates = [initial_short, 
-                initial_short * 1.1, 
-                initial_medium, 
-                initial_medium * 1.05, 
-                initial_long * 0.95, 
-                initial_long]
-        
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(maturities, rates, marker='o')
-        ax.set_xlabel('Maturity (years)')
-        ax.set_ylabel('Zero Rate')
-        ax.set_title('Example Yield Curve')
-        ax.grid(True)
-        
-        st.pyplot(fig)
-        
-        # Information about the app
+        # Display info about the app without example curve
         st.markdown("""
         ## About This Tool
         
