@@ -637,8 +637,12 @@ class MarketSimulation:
             "fra": [],
             "bond_forward": []
         }
+<<<<<<< HEAD
 
         # Check for arbitrage in FRAs
+=======
+        
+>>>>>>> parent of a631c85 (change arbitrage table and params)
         for i, fra in enumerate(self.fras):
             # Calculate theoretical forward rate based on current yield curve
             spot_rate = fra.underlying_bill.yield_rate
@@ -662,8 +666,12 @@ class MarketSimulation:
                     "difference": diff,
                     "action": "Buy" if diff < 0 else "Sell"
                 })
+<<<<<<< HEAD
 
         # Check for arbitrage in Bond Forwards
+=======
+        
+>>>>>>> parent of a631c85 (change arbitrage table and params)
         for i, bf in enumerate(self.bond_forwards):
             # Calculate theoretical forward yield based on spot rates and term structure
             current_spot_rate = bf.underlying_bond.yield_to_maturity
@@ -688,7 +696,11 @@ class MarketSimulation:
                     "difference": diff,
                     "action": "Buy" if diff < 0 else "Sell"
                 })
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> parent of a631c85 (change arbitrage table and params)
         return opportunities
 
     # ---------------------- Streamlit App ----------------------
@@ -721,6 +733,75 @@ def main():
     """, unsafe_allow_html=True)
     
     st.title("Dynamic Financial Market Simulator")
+<<<<<<< HEAD
+=======
+
+    # Create sidebar for simulation parameters
+    st.sidebar.header("Simulation Parameters")
+    
+    # Market structure parameters
+    st.sidebar.subheader("Market Structure")
+    num_bank_bills = st.sidebar.slider("Number of Bank Bills", 2, 8, 4)
+    num_bonds = st.sidebar.slider("Number of Bonds", 2, 8, 4)
+    num_fras = st.sidebar.slider("Number of FRAs", 1, 5, 3)
+    num_bond_forwards = st.sidebar.slider("Number of Bond Forwards", 1, 5, 3)
+    
+    # Yield curve parameters
+    st.sidebar.subheader("Yield Curve Parameters")
+    initial_short_rate = st.sidebar.slider("Initial Short Rate (%)", 1.0, 10.0, 4.5, 0.1) / 100
+    initial_medium_rate = st.sidebar.slider("Initial Medium Rate (%)", 1.0, 10.0, 5.0, 0.1) / 100
+    initial_long_rate = st.sidebar.slider("Initial Long Rate (%)", 1.0, 10.0, 6.5, 0.1) / 100
+    
+    # Volatility parameters
+    st.sidebar.subheader("Volatility Parameters")
+    bill_volatility = st.sidebar.slider("Bank Bill Volatility", 0.1, 1.0, 0.5, 0.1)
+    bond_volatility = st.sidebar.slider("Bond Volatility", 0.1, 1.0, 0.5, 0.1)
+    fra_volatility = st.sidebar.slider("FRA Volatility", 0.1, 1.5, 0.7, 0.1)
+    bond_forward_volatility = st.sidebar.slider("Bond Forward Volatility", 0.1, 1.5, 0.8, 0.1)
+    
+    # Correlation parameters
+    st.sidebar.subheader("Correlation Parameters")
+    short_medium_correlation = st.sidebar.slider("Short-Medium Correlation", -1.0, 1.0, 0.7, 0.1)
+    medium_long_correlation = st.sidebar.slider("Medium-Long Correlation", -1.0, 1.0, 0.6, 0.1)
+    
+    # Market update behavior
+    st.sidebar.subheader("Market Update Behavior")
+    market_drift = st.sidebar.slider("Market Drift (%/year)", -5.0, 5.0, 3.0, 0.1) / 100
+    
+    # Initialize or update simulation
+    if 'market_sim' not in st.session_state or st.sidebar.button("Reset Simulation"):
+        with st.spinner("Initializing market simulation..."):
+            # Create custom market simulation with user parameters
+            st.session_state.market_sim = create_custom_market_simulation(
+                num_bank_bills=num_bank_bills,
+                num_bonds=num_bonds,
+                num_fras=num_fras,
+                num_bond_forwards=num_bond_forwards,
+                initial_short_rate=initial_short_rate,
+                initial_medium_rate=initial_medium_rate,
+                initial_long_rate=initial_long_rate
+            )
+            st.session_state.volatility = bill_volatility  # Default volatility
+            st.session_state.update_count = 0
+            st.session_state.price_history = {
+                'bank_bills': {i: [] for i in range(len(st.session_state.market_sim.bank_bills))},
+                'bonds': {i: [] for i in range(len(st.session_state.market_sim.bonds))},
+                'fras': {i: [] for i in range(len(st.session_state.market_sim.fras))},
+                'bond_forwards': {i: [] for i in range(len(st.session_state.market_sim.bond_forwards))},
+            }
+            st.session_state.yield_history = []
+            st.session_state.timestamps = []
+            st.session_state.start_time = dt.datetime.now()
+            # Initialize price change tracking
+            st.session_state.previous_prices = {
+                'bank_bills': [bill.price for bill in st.session_state.market_sim.bank_bills],
+                'bonds': [bond.price for bond in st.session_state.market_sim.bonds],
+                'fras': [fra.price for fra in st.session_state.market_sim.fras],
+                'bond_forwards': [bf.price for bf in st.session_state.market_sim.bond_forwards],
+            }
+    
+    # Main content
+>>>>>>> parent of a631c85 (change arbitrage table and params)
     st.markdown("""
     This application simulates a financial market with various instruments:
     - Bank Bills (short-term debt instruments)
@@ -780,6 +861,7 @@ def main():
                         'bond_forwards': [bf.price for bf in st.session_state.market_sim.bond_forwards],
                     }
                     
+<<<<<<< HEAD
                     # Update the market
                     st.session_state.market_sim.update_market(volatility)
                     st.session_state.update_count += 1
@@ -800,6 +882,41 @@ def main():
                     maturities = st.session_state.market_sim.yield_curve.maturities
                     yields = st.session_state.market_sim.yield_curve.yields
                     st.session_state.yield_history.append((maturities, yields))
+=======
+                    # Perform multiple updates based on the num_time_steps slider
+                    with st.spinner(f"Performing {num_time_steps} market updates..."):
+                        for _ in range(num_time_steps):
+                            # Update the market with custom volatilities
+                            st.session_state.market_sim.update_market(
+                                base_volatility=volatility,
+                                bill_vol_factor=bill_volatility,
+                                bond_vol_factor=bond_volatility,
+                                fra_vol_factor=fra_volatility,
+                                bf_vol_factor=bond_forward_volatility,
+                                drift=market_drift,
+                                short_medium_corr=short_medium_correlation,
+                                medium_long_corr=medium_long_correlation
+                            )
+                            st.session_state.update_count += 1
+                            current_time = dt.datetime.now()
+                            st.session_state.timestamps.append(current_time)
+                            
+                            # Update price history
+                            for i, bill in enumerate(st.session_state.market_sim.bank_bills):
+                                st.session_state.price_history['bank_bills'][i].append(bill.price)
+                            for i, bond in enumerate(st.session_state.market_sim.bonds):
+                                st.session_state.price_history['bonds'][i].append(bond.price)
+                            for i, fra in enumerate(st.session_state.market_sim.fras):
+                                st.session_state.price_history['fras'][i].append(fra.price)
+                            for i, bf in enumerate(st.session_state.market_sim.bond_forwards):
+                                st.session_state.price_history['bond_forwards'][i].append(bf.price)
+                            
+                            # Add current yield curve snapshot if it's the last update
+                            if _ == num_time_steps - 1:
+                                maturities = st.session_state.market_sim.yield_curve.maturities
+                                yields = st.session_state.market_sim.yield_curve.yields
+                                st.session_state.yield_history.append((maturities, yields))
+>>>>>>> parent of a631c85 (change arbitrage table and params)
             
             with col2:
                 if st.button("Reset Simulation", use_container_width=True):
@@ -1020,6 +1137,15 @@ def main():
                         if rates:
                             ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
 
+<<<<<<< HEAD
+=======
+                                print(temp_bond)
+                                rates.append(temp_bond.yield_to_maturity * 100)  # Convert to percentage
+
+                            if rates:
+                                ax.plot(range(len(rates)), rates, '-o', label=f"Bond {i+1} ({bond.maturity_years} yrs)")
+                    
+>>>>>>> parent of a631c85 (change arbitrage table and params)
                     ax.set_xlabel('Market Updates')
                     ax.set_ylabel('Yield to Maturity (%)')
                     ax.set_title('Bond YTM History')
@@ -1313,6 +1439,7 @@ def main():
         current_time = dt.datetime.now()
         st.session_state.timestamps.append(current_time)
         
+<<<<<<< HEAD
         # Update price history
         for i, bill in enumerate(st.session_state.market_sim.bank_bills):
             st.session_state.price_history['bank_bills'][i].append(bill.price)
@@ -1323,6 +1450,8 @@ def main():
         for i, bf in enumerate(st.session_state.market_sim.bond_forwards):
             st.session_state.price_history['bond_forwards'][i].append(bf.price)
         
+=======
+>>>>>>> parent of a631c85 (change arbitrage table and params)
         # Add current yield curve snapshot
         maturities = st.session_state.market_sim.yield_curve.maturities
         yields = st.session_state.market_sim.yield_curve.yields
@@ -1330,5 +1459,96 @@ def main():
         
         st.rerun()
 
+<<<<<<< HEAD
+=======
+def create_custom_market_simulation(num_bank_bills=4, num_bonds=4, num_fras=3, num_bond_forwards=3,
+                                   initial_short_rate=0.045, initial_medium_rate=0.05, initial_long_rate=0.065):
+    """Create a market simulation with customized number of instruments and initial rates"""
+    
+    # Create bank bills with different maturities
+    bank_bills = []
+    for i in range(num_bank_bills):
+        # Spread maturities from 30 days to 270 days
+        if num_bank_bills <= 4:
+            # Use standard maturities: 30, 60, 90, 180 days
+            maturity_days = [30, 60, 90, 180][i]
+        else:
+            # For more than 4 bills, add additional maturities with tiny increments
+            if i < 4:
+                maturity_days = [30, 60, 90, 180][i]
+            else:
+            # Increase from 180 days by small increments
+                maturity_days = 180 + ((i - 3) * 10)  # 190, 200, 210, etc.
+        
+        # Assign yield based on maturity
+        maturity_years = maturity_days / 365
+        if maturity_years <= 0.5:
+            # Add tiny increment based on maturity to create upward slope
+            yield_rate = initial_short_rate + (maturity_years * 0.01)  # Small 1% per year slope
+        elif maturity_years <= 2:
+            yield_rate = initial_medium_rate
+        else:
+            yield_rate = initial_long_rate
+            
+        bank_bills.append(BankBill(maturity_days=maturity_days, yield_rate=yield_rate))
+    
+    # Create bonds with different maturities
+    bonds = []
+    for i in range(num_bonds):
+        # Spread maturities from 1 to 10 years
+        maturity_years = 1 + (i * (9 / (num_bonds - 1)) if num_bonds > 1 else 0)
+        
+        # Assign yield based on maturity
+        if maturity_years <= 2:
+            ytm = initial_medium_rate
+            coupon = initial_medium_rate - 0.002  # Slight discount to current yield
+        else:
+            ytm = initial_long_rate
+            coupon = initial_long_rate - 0.003  # Slight discount to current yield
+            
+        bonds.append(Bond(maturity_years=maturity_years, 
+                          coupon_rate=coupon, 
+                          yield_to_maturity=ytm))
+    
+    # Create market simulation
+    market_sim = MarketSimulation()
+    
+    # Replace default instruments with our custom ones
+    market_sim.bank_bills = bank_bills
+    market_sim.bonds = bonds
+    
+    # Create the yield curve
+    market_sim.yield_curve = YieldCurve(market_sim.bank_bills, market_sim.bonds)
+    
+    # Create FRAs
+    market_sim.fras = []
+    for i in range(min(num_fras, len(bank_bills))):
+        # Use different bank bills and settlement days
+        bill_index = i % len(bank_bills)
+        # Get distinct settlement days that match bill maturities
+        bill_maturities = [30, 60, 90, 180]
+        settlement_days = bill_maturities[i % len(bill_maturities)]
+        market_sim.fras.append(
+            ForwardRateAgreement(underlying_bill=market_sim.bank_bills[bill_index], 
+                                 settlement_days=settlement_days)
+        )
+    
+    # Create Bond Forwards
+    market_sim.bond_forwards = []
+    for i in range(min(num_bond_forwards, len(bonds))):
+        # Use different bonds and settlement days
+        bond_index = i % len(bonds)
+        settlement_days = 90 + (i * 60)  # 90, 150, 210, etc.
+        market_sim.bond_forwards.append(
+            BondForward(underlying_bond=market_sim.bonds[bond_index], 
+                       settlement_days=settlement_days)
+        )
+    
+    # Create a portfolio of all instruments
+    market_sim.create_portfolio()
+    
+    return market_sim
+
+>>>>>>> parent of a631c85 (change arbitrage table and params)
 if __name__ == "__main__":
     main()
