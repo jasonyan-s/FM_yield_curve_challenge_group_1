@@ -74,6 +74,12 @@ class YieldCurveSimulator:
             'inflation': initial_inflation_rate
         }
 
+        # Current state for step-by-step simulation
+        self.current_rates = None
+        self.rate_paths = None
+        self.yield_curves = []
+        self.zero_rates_history = []
+
     def generate_correlated_gbm_paths(self):
         """
         Generate correlated geometric Brownian motion paths for all parameters.
@@ -238,57 +244,64 @@ class YieldCurveSimulator:
             st.error(f"Unexpected error during bootstrapping: {e}")
             return None
 
-    def simulate_yield_curves(self):
+    def simulate_steps(self, start_step, end_step):
         """
-        Simulate a series of yield curves based on parameter paths.
-
-        Returns:
-        --------
-        list: List of yield curves at each time step
-        pd.DataFrame: DataFrame of zero rates for each maturity at each time step
+        Simulate yield curves for a specific range of steps.
+        
+        Parameters:
+        -----------
+        start_step : int
+            Starting step index
+        end_step : int
+            Ending step index (exclusive)
         """
-        # Generate rate paths
-        rate_paths = self.generate_correlated_gbm_paths()
-
-        # Store yield curves and zero rates for each time step
-        yield_curves = []
-        zero_rates_data = []
-
-        # Fixed maturities to extract for each curve
-        # These should align with typical points on a yield curve and instrument maturities.
-        maturities_to_extract = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30]
-
-        for t in range(self.num_steps):
-            # Extract rates at this time step
+        if self.rate_paths is None:
+            # Initialize paths if first time
+            self.rate_paths = self.generate_correlated_gbm_paths()
+        
+        for t in range(start_step, end_step):
+            # Extract rates for current step
             current_rates = {
-                'short_term': rate_paths['short_term'][t],
-                'medium_term': rate_paths['medium_term'][t],
-                'long_term': rate_paths['long_term'][t],
-                'inflation': rate_paths['inflation'][t]
+                'short_term': self.rate_paths['short_term'][t],
+                'medium_term': self.rate_paths['medium_term'][t],
+                'long_term': self.rate_paths['long_term'][t],
+                'inflation': self.rate_paths['inflation'][t]
             }
-
+            
             # Create instruments and construct yield curve
             portfolio = self.create_instruments_from_rates(current_rates)
             yc = self.construct_yield_curve(portfolio)
-
+            
             if yc is not None:
-                yield_curves.append(yc)
-
-                # Extract zero rates for specific maturities
+                self.yield_curves.append(yc)
+                # Extract and store zero rates
+                maturities_to_extract = [0.25, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30]
                 zero_rates_at_step = {'time_step': t}
                 for m in maturities_to_extract:
                     try:
                         rate = yc.get_zero_rate(m)
-                        # Ensure rates are not negative or excessively large
-                        zero_rates_at_step[str(m)] = max(0.0001, min(rate, 2.0)) # Clamp between 0.01% and 200%
+                        zero_rates_at_step[str(m)] = max(0.0001, min(rate, 2.0))
                     except ValueError:
-                        zero_rates_at_step[str(m)] = np.nan # Handle cases where rate might be undefined
-                zero_rates_data.append(zero_rates_at_step)
-
-        # Convert zero rates to DataFrame
-        zero_rates_df = pd.DataFrame(zero_rates_data)
-
-        return yield_curves, zero_rates_df
+                        zero_rates_at_step[str(m)] = np.nan
+                self.zero_rates_history.append(zero_rates_at_step)
+    
+    def get_current_curves(self):
+        """
+        Get the current state of yield curves and rates.
+        
+        Returns:
+        --------
+        tuple: (yield_curves, zero_rates_df)
+        """
+        zero_rates_df = pd.DataFrame(self.zero_rates_history)
+        return self.yield_curves, zero_rates_df
+    
+    def simulate_yield_curves(self):
+        """Run complete simulation."""
+        self.yield_curves = []
+        self.zero_rates_history = []
+        self.simulate_steps(0, self.num_steps)
+        return self.get_current_curves()
 
     def plot_yield_curves(self, zero_rates_df, selected_time_steps=None):
         """Plot yield curves for selected time steps."""
