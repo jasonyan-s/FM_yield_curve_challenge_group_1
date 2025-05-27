@@ -1,5 +1,6 @@
 # cash_flows class
 
+
 class CashFlows:
     def __init__(self):
         self.maturities = []
