@@ -506,7 +506,7 @@ class YieldCurve:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(self.maturities, [y * 100 for y in self.yields], 'o-', linewidth=2)
         ax.set_xlabel('Maturity (years)')
-        ax.set_ylim([min([y * 100 for y in self.yields]) - 2, max([y * 100 for y in self.yields]) + 2])
+        ax.set_ylim([min([y * 100 for y in self.yields]) - 0.5, max([y * 100 for y in self.yields]) + 0.5])
         ax.set_ylabel('Yield (%)')
         ax.set_title('Yield Curve')
         ax.grid(True)
@@ -993,35 +993,217 @@ def main():
     
     # Yield curve parameters
     st.sidebar.subheader("Yield Curve Parameters")
-    rate_30d = st.sidebar.slider("30-day Rate (%)", 1.0, 10.0, 4.5, 0.1) / 100
-    rate_60d = st.sidebar.slider("60-day Rate (%)", 1.0, 10.0, 4.7, 0.1) / 100
-    rate_90d = st.sidebar.slider("90-day Rate (%)", 1.0, 10.0, 5.0, 0.1) / 100
-    rate_180d = st.sidebar.slider("180-day Rate (%)", 1.0, 10.0, 5.3, 0.1) / 100
-    rate_1y = st.sidebar.slider("1-year Rate (%)", 1.0, 10.0, 5.6, 0.1) / 100
-    rate_2y = st.sidebar.slider("2-year Rate (%)", 1.0, 10.0, 5.8, 0.1) / 100
-    rate_5y = st.sidebar.slider("5-year Rate (%)", 1.0, 10.0, 6.2, 0.1) / 100
-    rate_10y = st.sidebar.slider("10-year Rate (%)", 1.0, 10.0, 6.7, 0.1) / 100
+    
+    # Define default values
+    default_values = {
+        'rate_30d': 0.045, 
+        'rate_60d': 0.047, 
+        'rate_90d': 0.05, 
+        'rate_180d': 0.053,
+        'rate_1y': 0.056, 
+        'rate_2y': 0.058, 
+        'rate_5y': 0.062, 
+        'rate_10y': 0.067,
+        'bill_volatility': 0.5,
+        'bond_volatility': 0.5,
+        'fra_volatility': 0.7,
+        'bond_forward_volatility': 0.8,
+        'short_medium_correlation': 0.7,
+        'medium_long_correlation': 0.6,
+        'market_drift': 0.03
+    }
+    
+    # Track parameter changes to detect when to reload yield curve
+    previous_params = st.session_state.get('yield_curve_params', {})
+    current_params = {}
+    
+    # Add Reset to Default Values button
+    if st.sidebar.button("Reset to Default Values"):
+        # Reset all parameters to default values
+        for key in default_values:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state['reset_triggered'] = True
+        st.rerun()
+    
+    # Check if reset was triggered and clear the flag
+    if 'reset_triggered' in st.session_state:
+        del st.session_state['reset_triggered']
+        
+    # Use session state to maintain values between reruns
+    if 'rate_30d' not in st.session_state:
+        st.session_state['rate_30d'] = default_values['rate_30d'] * 100
+    if 'rate_60d' not in st.session_state:
+        st.session_state['rate_60d'] = default_values['rate_60d'] * 100
+    if 'rate_90d' not in st.session_state:
+        st.session_state['rate_90d'] = default_values['rate_90d'] * 100
+    if 'rate_180d' not in st.session_state:
+        st.session_state['rate_180d'] = default_values['rate_180d'] * 100
+    if 'rate_1y' not in st.session_state:
+        st.session_state['rate_1y'] = default_values['rate_1y'] * 100
+    if 'rate_2y' not in st.session_state:
+        st.session_state['rate_2y'] = default_values['rate_2y'] * 100
+    if 'rate_5y' not in st.session_state:
+        st.session_state['rate_5y'] = default_values['rate_5y'] * 100
+    if 'rate_10y' not in st.session_state:
+        st.session_state['rate_10y'] = default_values['rate_10y'] * 100
+    
+    # Using key parameter to trigger callback on change
+    current_params['rate_30d'] = st.sidebar.slider("30-day Rate (%)", 1.0, 10.0, st.session_state['rate_30d'], 0.1, key='rate_30d_slider') / 100
+    current_params['rate_60d'] = st.sidebar.slider("60-day Rate (%)", 1.0, 10.0, st.session_state['rate_60d'], 0.1, key='rate_60d_slider') / 100
+    current_params['rate_90d'] = st.sidebar.slider("90-day Rate (%)", 1.0, 10.0, st.session_state['rate_90d'], 0.1, key='rate_90d_slider') / 100
+    current_params['rate_180d'] = st.sidebar.slider("180-day Rate (%)", 1.0, 10.0, st.session_state['rate_180d'], 0.1, key='rate_180d_slider') / 100
+    current_params['rate_1y'] = st.sidebar.slider("1-year Rate (%)", 1.0, 10.0, st.session_state['rate_1y'], 0.1, key='rate_1y_slider') / 100
+    current_params['rate_2y'] = st.sidebar.slider("2-year Rate (%)", 1.0, 10.0, st.session_state['rate_2y'], 0.1, key='rate_2y_slider') / 100
+    current_params['rate_5y'] = st.sidebar.slider("5-year Rate (%)", 1.0, 10.0, st.session_state['rate_5y'], 0.1, key='rate_5y_slider') / 100
+    current_params['rate_10y'] = st.sidebar.slider("10-year Rate (%)", 1.0, 10.0, st.session_state['rate_10y'], 0.1, key='rate_10y_slider') / 100
+    
+    # Update session state for next time
+    st.session_state['rate_30d'] = current_params['rate_30d'] * 100
+    st.session_state['rate_60d'] = current_params['rate_60d'] * 100
+    st.session_state['rate_90d'] = current_params['rate_90d'] * 100
+    st.session_state['rate_180d'] = current_params['rate_180d'] * 100
+    st.session_state['rate_1y'] = current_params['rate_1y'] * 100
+    st.session_state['rate_2y'] = current_params['rate_2y'] * 100
+    st.session_state['rate_5y'] = current_params['rate_5y'] * 100
+    st.session_state['rate_10y'] = current_params['rate_10y'] * 100
+    
+    # Check if any parameter has changed
+    if previous_params != current_params and previous_params:
+        # Show alert about parameter change
+        st.sidebar.warning("⚠️ Yield curve parameters changed! Market will update automatically.")
+        
+        # Save current parameters for next comparison
+        st.session_state.yield_curve_params = current_params
+        
+        # Reset the market with new yield curve parameters
+        if 'market_sim' in st.session_state:
+            # Reset rates to new values
+            for i, bill in enumerate(st.session_state.market_sim.bank_bills):
+                maturity_days = bill.maturity_days
+                if maturity_days == 30:
+                    bill.update_yield(current_params['rate_30d'])
+                elif maturity_days == 60:
+                    bill.update_yield(current_params['rate_60d'])
+                elif maturity_days == 90:
+                    bill.update_yield(current_params['rate_90d'])
+                elif maturity_days == 180:
+                    bill.update_yield(current_params['rate_180d'])
+            
+            for i, bond in enumerate(st.session_state.market_sim.bonds):
+                if bond.maturity_years == 1:
+                    bond.update_ytm(current_params['rate_1y'])
+                elif bond.maturity_years == 2:
+                    bond.update_ytm(current_params['rate_2y'])
+                elif bond.maturity_years == 5:
+                    bond.update_ytm(current_params['rate_5y'])
+                elif bond.maturity_years == 10:
+                    bond.update_ytm(current_params['rate_10y'])
+                    
+            # Update yield curve
+            st.session_state.market_sim.yield_curve.update_curve()
+            
+            # Update derivatives based on new underlying prices
+            for fra in st.session_state.market_sim.fras:
+                fra.update_forward_rate(fra.calculate_theoretical_forward_rate())
+            
+            for bf in st.session_state.market_sim.bond_forwards:
+                bf.update_forward_yield(bf.calculate_theoretical_forward_yield())
+    else:
+        # Just initialize the yield_curve_params with current parameters if this is the first run
+        st.session_state.yield_curve_params = current_params
     
     # Volatility parameters
     st.sidebar.subheader("Volatility Parameters")
-    bill_volatility = st.sidebar.slider("Bank Bill Volatility", 0.1, 1.0, 0.5, 0.1)
-    bond_volatility = st.sidebar.slider("Bond Volatility", 0.1, 1.0, 0.5, 0.1)
-    fra_volatility = st.sidebar.slider("FRA Volatility", 0.1, 1.5, 0.7, 0.1)
-    bond_forward_volatility = st.sidebar.slider("Bond Forward Volatility", 0.1, 1.5, 0.8, 0.1)
+    
+    # Track previous volatility parameters for comparison
+    previous_vol_params = st.session_state.get('volatility_params', {})
+    current_vol_params = {}
+    
+    if 'bill_volatility' not in st.session_state:
+        st.session_state['bill_volatility'] = default_values['bill_volatility']
+    if 'bond_volatility' not in st.session_state:
+        st.session_state['bond_volatility'] = default_values['bond_volatility']
+    if 'fra_volatility' not in st.session_state:
+        st.session_state['fra_volatility'] = default_values['fra_volatility']
+    if 'bond_forward_volatility' not in st.session_state:
+        st.session_state['bond_forward_volatility'] = default_values['bond_forward_volatility']
+    
+    current_vol_params['bill_volatility'] = st.sidebar.slider("Bank Bill Volatility", 0.1, 1.0, st.session_state['bill_volatility'], 0.1, key='bill_volatility_slider')
+    current_vol_params['bond_volatility'] = st.sidebar.slider("Bond Volatility", 0.1, 1.0, st.session_state['bond_volatility'], 0.1, key='bond_volatility_slider')
+    current_vol_params['fra_volatility'] = st.sidebar.slider("FRA Volatility", 0.1, 1.5, st.session_state['fra_volatility'], 0.1, key='fra_volatility_slider')
+    current_vol_params['bond_forward_volatility'] = st.sidebar.slider("Bond Forward Volatility", 0.1, 1.5, st.session_state['bond_forward_volatility'], 0.1, key='bond_forward_volatility_slider')
+    
+    st.session_state['bill_volatility'] = current_vol_params['bill_volatility']
+    st.session_state['bond_volatility'] = current_vol_params['bond_volatility']
+    st.session_state['fra_volatility'] = current_vol_params['fra_volatility']
+    st.session_state['bond_forward_volatility'] = current_vol_params['bond_forward_volatility']
+    
+    # Check if volatility parameters have changed
+    if previous_vol_params != current_vol_params and previous_vol_params:
+        st.sidebar.warning("⚠️ Volatility parameters changed! Market behavior will be affected.")
+        
+    # Store current parameters for next comparison
+    st.session_state.volatility_params = current_vol_params
     
     # Correlation parameters
     st.sidebar.subheader("Correlation Parameters")
-    short_medium_correlation = st.sidebar.slider("Short-Medium Correlation", -1.0, 1.0, 0.7, 0.1)
-    medium_long_correlation = st.sidebar.slider("Medium-Long Correlation", -1.0, 1.0, 0.6, 0.1)
+    
+    # Track previous correlation parameters for comparison
+    previous_corr_params = st.session_state.get('correlation_params', {})
+    current_corr_params = {}
+    
+    if 'short_medium_correlation' not in st.session_state:
+        st.session_state['short_medium_correlation'] = default_values['short_medium_correlation']
+    if 'medium_long_correlation' not in st.session_state:
+        st.session_state['medium_long_correlation'] = default_values['medium_long_correlation']
+    
+    current_corr_params['short_medium_correlation'] = st.sidebar.slider("Short-Medium Correlation", -1.0, 1.0, st.session_state['short_medium_correlation'], 0.1, key='short_medium_correlation_slider')
+    current_corr_params['medium_long_correlation'] = st.sidebar.slider("Medium-Long Correlation", -1.0, 1.0, st.session_state['medium_long_correlation'], 0.1, key='medium_long_correlation_slider')
+    
+    st.session_state['short_medium_correlation'] = current_corr_params['short_medium_correlation']
+    st.session_state['medium_long_correlation'] = current_corr_params['medium_long_correlation']
+    
+    # Check if correlation parameters have changed
+    if previous_corr_params != current_corr_params and previous_corr_params:
+        st.sidebar.warning("⚠️ Correlation parameters changed! This will affect how instruments move together.")
+    
+    # Store current parameters for next comparison
+    st.session_state.correlation_params = current_corr_params
     
     # Market update behavior
     st.sidebar.subheader("Market Update Behavior")
-    market_drift = st.sidebar.slider("Market Drift (%/year)", -5.0, 5.0, 3.0, 0.1) / 100
+    
+    # Track previous market drift parameter for comparison
+    previous_drift = st.session_state.get('market_drift_param', None)
+    
+    if 'market_drift' not in st.session_state:
+        st.session_state['market_drift'] = default_values['market_drift'] * 100
+    
+    market_drift = st.sidebar.slider("Market Drift (%/year)", -5.0, 5.0, st.session_state['market_drift'], 0.1, key='market_drift_slider') / 100
+    
+    st.session_state['market_drift'] = market_drift * 100
+    
+    # Check if market drift parameter has changed
+    if previous_drift is not None and previous_drift != market_drift:
+        st.sidebar.warning("⚠️ Market drift parameter changed! This will affect the long-term trend of rates.")
+    
+    # Store current parameter for next comparison
+    st.session_state.market_drift_param = market_drift
     
     # Initialize or update simulation
     if 'market_sim' not in st.session_state or st.sidebar.button("Reset Simulation"):
         with st.spinner("Initializing market simulation..."):
             # Create custom market simulation with user parameters
+            # Assign rates from current_params before calling create_custom_market_simulation
+            rate_30d = current_params['rate_30d']
+            rate_60d = current_params['rate_60d']
+            rate_90d = current_params['rate_90d']
+            rate_180d = current_params['rate_180d']
+            rate_1y = current_params['rate_1y']
+            rate_2y = current_params['rate_2y']
+            rate_5y = current_params['rate_5y']
+            rate_10y = current_params['rate_10y']
             st.session_state.market_sim = create_custom_market_simulation(
                 rate_30d=rate_30d,
                 rate_60d=rate_60d,
@@ -1032,7 +1214,7 @@ def main():
                 rate_5y=rate_5y,
                 rate_10y=rate_10y
             )
-            st.session_state.volatility = bill_volatility  # Default volatility
+            st.session_state.volatility = st.session_state['bill_volatility']  # Default volatility
             st.session_state.update_count = 0
             st.session_state.price_history = {
                 'bank_bills': {i: [] for i in range(len(st.session_state.market_sim.bank_bills))},
@@ -1041,6 +1223,9 @@ def main():
                 'bond_forwards': {i: [] for i in range(len(st.session_state.market_sim.bond_forwards))},
             }
             st.session_state.yield_history = []
+            maturities = st.session_state.market_sim.yield_curve.maturities
+            yields = st.session_state.market_sim.yield_curve.yields
+            st.session_state.yield_history.append((maturities, yields))
             st.session_state.timestamps = []
             st.session_state.start_time = dt.datetime.now()
             # Initialize price change tracking
@@ -1060,13 +1245,7 @@ def main():
     
     # Main content
     st.markdown("""
-    This application simulates a financial market with various instruments:
-    - Bank Bills (short-term debt instruments)
-    - Bonds (longer-term debt instruments)
-    - Forward Rate Agreements (FRAs)
-    - Bond Forwards
-    
-    The simulation shows real-time price movements and identifies arbitrage opportunities.
+    FINMA Module 3 Financial Modelling Challenge Task - Jason Yan, Nathaniel Van Beelen, Serena Chui, Aaryan Gandhi, Molly Henry, Daniel Nemani, with the assistance of Claude 3.7 Sonnet.
     """)
     
     # Create the layout
@@ -1109,13 +1288,13 @@ def main():
                             # Update the market with custom volatilities
                             st.session_state.market_sim.update_market(
                                 base_volatility=volatility,
-                                bill_vol_factor=bill_volatility,
-                                bond_vol_factor=bond_volatility,
-                                fra_vol_factor=fra_volatility,
-                                bf_vol_factor=bond_forward_volatility,
+                                bill_vol_factor=st.session_state['bill_volatility'],
+                                bond_vol_factor=st.session_state['bond_volatility'],
+                                fra_vol_factor=st.session_state['fra_volatility'],
+                                bf_vol_factor=st.session_state['bond_forward_volatility'],
                                 drift=market_drift,
-                                short_medium_corr=short_medium_correlation,
-                                medium_long_corr=medium_long_correlation
+                                short_medium_corr=st.session_state['short_medium_correlation'],
+                                medium_long_corr=st.session_state['medium_long_correlation']
                             )
                             st.session_state.update_count += 1
                             current_time = dt.datetime.now()
@@ -1157,6 +1336,14 @@ def main():
                     with st.spinner("Resetting market prices..."):
                         # Define initial rates based on sidebar parameters
                         # Using the specific tenor rates directly
+                        rate_30d = st.session_state['rate_30d'] / 100
+                        rate_60d = st.session_state['rate_60d'] / 100
+                        rate_90d = st.session_state['rate_90d'] / 100
+                        rate_180d = st.session_state['rate_180d'] / 100
+                        rate_1y = st.session_state['rate_1y'] / 100
+                        rate_2y = st.session_state['rate_2y'] / 100
+                        rate_5y = st.session_state['rate_5y'] / 100
+                        rate_10y = st.session_state['rate_10y'] / 100
                         
                         # Reset rates to initial values
                         for i, bill in enumerate(st.session_state.market_sim.bank_bills):
@@ -1572,7 +1759,7 @@ def main():
         
         for i, fra in enumerate(st.session_state.market_sim.fras):
             with cols[i]:
-                # Determine price change direction
+                               # Determine price change direction
                 prev_price = st.session_state.previous_prices['fras'][i] if i < len(st.session_state.previous_prices['fras']) else fra.price
                 price_change = fra.price - prev_price
                 price_class = "price-up" if price_change >= 0 else "price-down"
@@ -1865,13 +2052,13 @@ def main():
             # Update the market with custom volatilities
             st.session_state.market_sim.update_market(
                 base_volatility=volatility,
-                bill_vol_factor=bill_volatility,
-                bond_vol_factor=bond_volatility,
-                fra_vol_factor=fra_volatility,
-                bf_vol_factor=bond_forward_volatility,
+                bill_vol_factor=st.session_state['bill_volatility'],
+                bond_vol_factor=st.session_state['bond_volatility'],
+                fra_vol_factor=st.session_state['fra_volatility'],
+                bf_vol_factor=st.session_state['bond_forward_volatility'],
                 drift=market_drift,
-                short_medium_corr=short_medium_correlation,
-                medium_long_corr=medium_long_correlation
+                short_medium_corr=st.session_state['short_medium_correlation'],
+                medium_long_corr=st.session_state['medium_long_correlation']
             )
             st.session_state.update_count += 1
             current_time = dt.datetime.now()
