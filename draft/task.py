@@ -58,7 +58,6 @@ class BankBill:
             ytm=yield_rate
         )
         temp_bill.set_ytm(yield_rate)
-        print(f" face value is {self.face_value}, maturity is {self.maturity_days/365}, yield_rate is {yield_rate}, price is {temp_bill.price}")
         return temp_bill.get_price()
     
     def calculate_yield_from_price(self, price: float) -> float:
@@ -157,7 +156,6 @@ class Bond:
             else:
                 ytm_high = ytm_mid
         
-        print(f"Estimated YTM from price ytm_low is ytm_high is ${price:.2f}: {ytm_mid*100:.2f}%")
         return (ytm_low + ytm_high) / 2
     
     def update_price(self, new_price: float):
@@ -725,12 +723,10 @@ class MarketSimulation:
         for i, bill in enumerate(self.bank_bills):
             maturity_years = bill.maturity_days / 365
             interpolated_rate = self.yield_curve.get_interpolated_rate(maturity_years)
-            print(f"Interpolated rate for {bill.maturity_days} days: {interpolated_rate*100:.2f}%")
             
             # Calculate theoretical price based on interpolated rate
             theoretical_price = bill.calculate_price_from_yield(interpolated_rate)
-            print(f"Theoretical price for {bill.maturity_days} days: ${theoretical_price:.2f}")
-            print(f"Bill market price: ${bill.price:.2f}")
+
             diff = bill.price - theoretical_price
             
             # If difference is significant, consider it an arbitrage opportunity
@@ -775,7 +771,6 @@ class MarketSimulation:
             multi_opps["calendar_spread"]
         )
         
-        print(opportunities)
         return opportunities
 
     def get_butterfly_arbitrage(self) -> List[Dict]:
@@ -1161,25 +1156,29 @@ def main():
                     # Reset just the market prices without changing structure
                     with st.spinner("Resetting market prices..."):
                         # Define initial rates based on sidebar parameters
-                        initial_short_rate = rate_30d
-                        initial_medium_rate = rate_2y
-                        initial_long_rate = rate_10y
+                        # Using the specific tenor rates directly
                         
                         # Reset rates to initial values
                         for i, bill in enumerate(st.session_state.market_sim.bank_bills):
-                            maturity_years = bill.maturity_days / 365
-                            if maturity_years <= 0.5:
-                                bill.update_yield(initial_short_rate)
-                            elif maturity_years <= 2:
-                                bill.update_yield(initial_medium_rate)
-                            else:
-                                bill.update_yield(initial_long_rate)
+                            maturity_days = bill.maturity_days
+                            if maturity_days == 30:
+                                bill.update_yield(rate_30d)
+                            elif maturity_days == 60:
+                                bill.update_yield(rate_60d)
+                            elif maturity_days == 90:
+                                bill.update_yield(rate_90d)
+                            elif maturity_days == 180:
+                                bill.update_yield(rate_180d)
                         
                         for i, bond in enumerate(st.session_state.market_sim.bonds):
-                            if bond.maturity_years <= 2:
-                                bond.update_ytm(initial_medium_rate)
-                            else:
-                                bond.update_ytm(initial_long_rate)
+                            if bond.maturity_years == 1:
+                                bond.update_ytm(rate_1y)
+                            elif bond.maturity_years == 2:
+                                bond.update_ytm(rate_2y)
+                            elif bond.maturity_years == 5:
+                                bond.update_ytm(rate_5y)
+                            elif bond.maturity_years == 10:
+                                bond.update_ytm(rate_10y)
                                 
                         st.session_state.market_sim.yield_curve.update_curve()
                         
@@ -1239,7 +1238,7 @@ def main():
             st.pyplot(st.session_state.market_sim.yield_curve.plot())
             
             # Add yield curve animation if we have history
-            if len(st.session_state.yield_history) > 1:
+            if len(st.session_state.yield_history) > 0:
                 st.subheader("Yield Curve Evolution")
                 # Create an animated plot of the yield curve over time
                 fig, ax = plt.subplots(figsize=(10, 6))
@@ -1388,7 +1387,6 @@ def main():
                                     price=price
                                 )
 
-                                print(temp_bond)
                                 rates.append(temp_bond.yield_to_maturity * 100)  # Convert to percentage
 
                             if rates:
