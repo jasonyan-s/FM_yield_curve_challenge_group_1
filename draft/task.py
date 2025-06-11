@@ -1240,7 +1240,7 @@ def main():
 
     # Display main introduction and credits
     st.markdown("""
-    FINMA Module 3 Financial Modelling Challenge Task - Jason Yan, Nathaniel Van Beelen, Serena Chui, Aaryan Gandhi, Molly Henry, Daniel Nemani, with the assistance of Claude 3.7 Sonnet.
+    Jason Yan, Nathaniel Van Beelen, Serena Chui, Aaryan Gandhi, Molly Henry, Daniel Nemani, with the assistance of Claude 3.7 Sonnet.
     """)
     
     # Create the layout
