@@ -114,15 +114,85 @@ def setup_yield_curve_parameters(default_values):
     
     # Create sliders for each rate
     current_params = {}
-    current_params['rate_30d'] = st.sidebar.slider("30-day Rate (%)", 1.0, 10.0, st.session_state['rate_30d'], 0.1, key='rate_30d_slider') / 100
-    current_params['rate_60d'] = st.sidebar.slider("60-day Rate (%)", 1.0, 10.0, st.session_state['rate_60d'], 0.1, key='rate_60d_slider') / 100
-    current_params['rate_90d'] = st.sidebar.slider("90-day Rate (%)", 1.0, 10.0, st.session_state['rate_90d'], 0.1, key='rate_90d_slider') / 100
-    current_params['rate_180d'] = st.sidebar.slider("180-day Rate (%)", 1.0, 10.0, st.session_state['rate_180d'], 0.1, key='rate_180d_slider') / 100
-    current_params['rate_1y'] = st.sidebar.slider("1-year Rate (%)", 1.0, 10.0, st.session_state['rate_1y'], 0.1, key='rate_1y_slider') / 100
-    current_params['rate_2y'] = st.sidebar.slider("2-year Rate (%)", 1.0, 10.0, st.session_state['rate_2y'], 0.1, key='rate_2y_slider') / 100
-    current_params['rate_5y'] = st.sidebar.slider("5-year Rate (%)", 1.0, 10.0, st.session_state['rate_5y'], 0.1, key='rate_5y_slider') / 100
-    current_params['rate_10y'] = st.sidebar.slider("10-year Rate (%)", 1.0, 10.0, st.session_state['rate_10y'], 0.1, key='rate_10y_slider') / 100
-    
+    # 30-day Rate
+    rate_30d_slider = st.sidebar.slider("30-day Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_30d']:.4f}"), 0.0001, format="%.4f", key='rate_30d_slider')
+    rate_30d_number = st.sidebar.number_input("30-day Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_30d_slider:.4f}"), step=0.0001, format="%.4f", key='rate_30d_number')
+    if abs(rate_30d_number - rate_30d_slider) > 1e-8:
+        st.session_state['rate_30d'] = rate_30d_number
+        rate_30d = rate_30d_number
+    else:
+        rate_30d = rate_30d_slider
+    current_params['rate_30d'] = rate_30d / 100
+
+    # 60-day Rate
+    rate_60d_slider = st.sidebar.slider("60-day Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_60d']:.4f}"), 0.0001, format="%.4f", key='rate_60d_slider')
+    rate_60d_number = st.sidebar.number_input("60-day Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_60d_slider:.4f}"), step=0.0001, format="%.4f", key='rate_60d_number')
+    if abs(rate_60d_number - rate_60d_slider) > 1e-8:
+        st.session_state['rate_60d'] = rate_60d_number
+        rate_60d = rate_60d_number
+    else:
+        rate_60d = rate_60d_slider
+    current_params['rate_60d'] = rate_60d / 100
+
+    # 90-day Rate
+    rate_90d_slider = st.sidebar.slider("90-day Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_90d']:.4f}"), 0.0001, format="%.4f", key='rate_90d_slider')
+    rate_90d_number = st.sidebar.number_input("90-day Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_90d_slider:.4f}"), step=0.0001, format="%.4f", key='rate_90d_number')
+    if abs(rate_90d_number - rate_90d_slider) > 1e-8:
+        st.session_state['rate_90d'] = rate_90d_number
+        rate_90d = rate_90d_number
+    else:
+        rate_90d = rate_90d_slider
+    current_params['rate_90d'] = rate_90d / 100
+
+    # 180-day Rate
+    rate_180d_slider = st.sidebar.slider("180-day Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_180d']:.4f}"), 0.0001, format="%.4f", key='rate_180d_slider')
+    rate_180d_number = st.sidebar.number_input("180-day Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_180d_slider:.4f}"), step=0.0001, format="%.4f", key='rate_180d_number')
+    if abs(rate_180d_number - rate_180d_slider) > 1e-8:
+        st.session_state['rate_180d'] = rate_180d_number
+        rate_180d = rate_180d_number
+    else:
+        rate_180d = rate_180d_slider
+    current_params['rate_180d'] = rate_180d / 100
+
+    # 1-year Rate
+    rate_1y_slider = st.sidebar.slider("1-year Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_1y']:.4f}"), 0.0001, format="%.4f", key='rate_1y_slider')
+    rate_1y_number = st.sidebar.number_input("1-year Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_1y_slider:.4f}"), step=0.0001, format="%.4f", key='rate_1y_number')
+    if abs(rate_1y_number - rate_1y_slider) > 1e-8:
+        st.session_state['rate_1y'] = rate_1y_number
+        rate_1y = rate_1y_number
+    else:
+        rate_1y = rate_1y_slider
+    current_params['rate_1y'] = rate_1y / 100
+
+    # 2-year Rate
+    rate_2y_slider = st.sidebar.slider("2-year Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_2y']:.4f}"), 0.0001, format="%.4f", key='rate_2y_slider')
+    rate_2y_number = st.sidebar.number_input("2-year Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_2y_slider:.4f}"), step=0.0001, format="%.4f", key='rate_2y_number')
+    if abs(rate_2y_number - rate_2y_slider) > 1e-8:
+        st.session_state['rate_2y'] = rate_2y_number
+        rate_2y = rate_2y_number
+    else:
+        rate_2y = rate_2y_slider
+    current_params['rate_2y'] = rate_2y / 100
+
+    # 5-year Rate
+    rate_5y_slider = st.sidebar.slider("5-year Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_5y']:.4f}"), 0.0001, format="%.4f", key='rate_5y_slider')
+    rate_5y_number = st.sidebar.number_input("5-year Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_5y_slider:.4f}"), step=0.0001, format="%.4f", key='rate_5y_number')
+    if abs(rate_5y_number - rate_5y_slider) > 1e-8:
+        st.session_state['rate_5y'] = rate_5y_number
+        rate_5y = rate_5y_number
+    else:
+        rate_5y = rate_5y_slider
+    current_params['rate_5y'] = rate_5y / 100
+
+    # 10-year Rate
+    rate_10y_slider = st.sidebar.slider("10-year Rate (%)", 1.0, 10.0, float(f"{st.session_state['rate_10y']:.4f}"), 0.0001, format="%.4f", key='rate_10y_slider')
+    rate_10y_number = st.sidebar.number_input("10-year Rate (%) (manual)", min_value=1.0, max_value=10.0, value=float(f"{rate_10y_slider:.4f}"), step=0.0001, format="%.4f", key='rate_10y_number')
+    if abs(rate_10y_number - rate_10y_slider) > 1e-8:
+        st.session_state['rate_10y'] = rate_10y_number
+        rate_10y = rate_10y_number
+    else:
+        rate_10y = rate_10y_slider
+    current_params['rate_10y'] = rate_10y / 100
     # Update session state for next time
     for key in current_params:
         st.session_state[key] = current_params[key] * 100
